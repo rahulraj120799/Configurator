@@ -2,10 +2,10 @@
 
 import { Suspense, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Center, useGLTF } from "@react-three/drei";
+import { OrbitControls, useGLTF } from "@react-three/drei";
 import { Box3, Vector3 } from "three";
 
-type BodyTypeKey = "flatbed" | "box" | "tanker";
+type BodyTypeKey = "dump" | "service";
 
 type BodyTypeOption = {
   key: BodyTypeKey;
@@ -14,44 +14,72 @@ type BodyTypeOption = {
 };
 
 const bodyTypeOptions: BodyTypeOption[] = [
-  { key: "flatbed", label: "Flatbed Body", modelPath: "/model1.glb" },
-  { key: "box", label: "Box Body", modelPath: "/model2.glb" },
-  { key: "tanker", label: "Tanker Body", modelPath: "/model3.glb" },
+  { key: "dump", label: "Dump Body", modelPath: "/model1.glb" },
+  { key: "service", label: "Service Body", modelPath: "/model2.glb" },
 ];
+
+const dropdownOptions = {
+  make: ["Volvo", "Scania", "MAN", "Daimler", "Renault"],
+  modelYear: ["2024", "2023", "2022", "2021", "2020"],
+  cabStyle: ["Day Cab", "Sleeper Cab", "Crew Cab"],
+  modelName: ["FH16", "S730", "TGX", "Actros", "T"],
+  cabType: ["Standard", "Premium", "Executive"],
+  ca: ["2.5m", "3.0m", "3.5m", "4.0m"],
+  wb: ["3.0m", "3.5m", "4.0m", "4.5m", "5.0m"],
+  fuelType: ["Diesel", "LNG", "Hybrid", "Electric"],
+  rearWheelDriveType: ["Single", "Dual", "Tridem"],
+} as const;
+
+type ConfigState = {
+  bodyType: BodyTypeKey | "";
+  make: string;
+  modelYear: string;
+  cabStyle: string;
+  modelName: string;
+  cabType: string;
+  ca: string;
+  wb: string;
+  fuelType: string;
+  rearWheelDriveType: string;
+};
+
+type DropdownField = keyof typeof dropdownOptions;
 
 function BridgeModel({ modelPath }: { modelPath: string }) {
   const { scene } = useGLTF(modelPath);
   const model = useMemo(() => scene.clone(), [scene]);
-  const scale = useMemo(() => {
+  const { groundedModel, scale } = useMemo(() => {
     const bounds = new Box3().setFromObject(model);
     const size = new Vector3();
+    const center = new Vector3();
     bounds.getSize(size);
+    bounds.getCenter(center);
 
     const maxDimension = Math.max(size.x, size.y, size.z);
     if (!maxDimension) {
-      return 1;
+      return { groundedModel: model, scale: 1 };
     }
 
-    return 6 / maxDimension;
+    model.position.set(-center.x, -bounds.min.y, -center.z);
+
+    return {
+      groundedModel: model,
+      scale: 8 / maxDimension,
+    };
   }, [model]);
 
-  return (
-    <Center>
-      <primitive object={model} scale={scale} />
-    </Center>
-  );
+  return <primitive object={groundedModel} scale={scale} />;
 }
 
 useGLTF.preload("/model1.glb");
 useGLTF.preload("/model2.glb");
-useGLTF.preload("/model3.glb");
 
-function BridgeScene({ selectedBodyType }: { selectedBodyType: BodyTypeKey }) {
+function BridgeScene({ selectedBodyType }: { selectedBodyType: BodyTypeKey | "" }) {
   const visibleBodyType = bodyTypeOptions.find((option) => option.key === selectedBodyType);
 
   return (
     <Canvas
-      camera={{ position: [14, 8, 14], fov: 42 }}
+      camera={{ position: [10, 6, 10], fov: 38 }}
       gl={{ antialias: true }}
       dpr={[1, 2]}
       style={{ width: "100%", height: "100%" }}
@@ -77,11 +105,11 @@ function BridgeScene({ selectedBodyType }: { selectedBodyType: BodyTypeKey }) {
 
       <OrbitControls
         enablePan={false}
-        minDistance={6}
+        minDistance={4}
         maxDistance={40}
         minPolarAngle={Math.PI / 4.2}
         maxPolarAngle={Math.PI / 2.05}
-        target={[0, 0, 0]}
+        target={[0, 0.75, 0]}
       />
     </Canvas>
   );
@@ -89,8 +117,8 @@ function BridgeScene({ selectedBodyType }: { selectedBodyType: BodyTypeKey }) {
 
 export default function ConfigurePage() {
   const [activeTab, setActiveTab] = useState("configure");
-  const [config, setConfig] = useState({
-    bodyType: "flatbed" as BodyTypeKey,
+  const [config, setConfig] = useState<ConfigState>({
+    bodyType: "dump",
     make: "",
     modelYear: "",
     cabStyle: "",
@@ -109,20 +137,32 @@ export default function ConfigurePage() {
   };
 
   const handleBodyTypeChange = (value: string) => {
-    setConfig((prev) => ({ ...prev, bodyType: value as BodyTypeKey }));
+    setConfig((prev) => ({ ...prev, bodyType: value as BodyTypeKey | "" }));
   };
 
-  const dropdownOptions = {
-    make: ["Volvo", "Scania", "MAN", "Daimler", "Renault"],
-    modelYear: ["2024", "2023", "2022", "2021", "2020"],
-    cabStyle: ["Day Cab", "Sleeper Cab", "Crew Cab"],
-    modelName: ["FH16", "S730", "TGX", "Actros", "T"],
-    cabType: ["Standard", "Premium", "Executive"],
-    ca: ["2.5m", "3.0m", "3.5m", "4.0m"],
-    wb: ["3.0m", "3.5m", "4.0m", "4.5m", "5.0m"],
-    fuelType: ["Diesel", "LNG", "Hybrid", "Electric"],
-    rearWheelDriveType: ["Single", "Dual", "Tridem"],
-  };
+  const totalPrice = useMemo(() => {
+    const getSelectionCost = (options: readonly string[], selectedValue: string) => {
+      if (!selectedValue) {
+        return 0;
+      }
+
+      const selectedIndex = options.indexOf(selectedValue);
+      if (selectedIndex < 0) {
+        return 0;
+      }
+
+      return selectedIndex % 2 === 0 ? 100 : 200;
+    };
+
+    let runningTotal = 100;
+    runningTotal += getSelectionCost(bodyTypeOptions.map((option) => option.key), config.bodyType);
+
+    (Object.keys(dropdownOptions) as DropdownField[]).forEach((field) => {
+      runningTotal += getSelectionCost(dropdownOptions[field], config[field]);
+    });
+
+    return runningTotal;
+  }, [config]);
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -146,8 +186,8 @@ export default function ConfigurePage() {
           {/* Price Card */}
           <div className="mb-8 rounded-[20px] border border-white/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.08))] px-4 py-4 shadow-xl backdrop-blur-xl">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-100/80">Estimated Price</p>
-            <p className="mt-2 text-3xl font-bold text-white">${price.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
-            <p className="mt-2 text-xs text-blue-100/75">Live quote with selected configuration</p>
+            <p className="mt-2 text-3xl font-bold text-white">${totalPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
+            <p className="mt-2 text-xs text-blue-100/75">Live quote with selected chassis package</p>
           </div>
 
           {/* Navigation Tabs */}
@@ -192,6 +232,7 @@ export default function ConfigurePage() {
                       onChange={(e) => handleBodyTypeChange(e.target.value)}
                       className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     >
+                      <option value="">Select Body Type</option>
                       {bodyTypeOptions.map((opt) => (
                         <option key={opt.key} value={opt.key}>
                           {opt.label}
