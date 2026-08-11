@@ -1,11 +1,56 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { ReactNode, Suspense, useId, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
 import { Box3, Vector3 } from "three";
+import { APP_NAME } from "./constant";
 
 type BodyTypeKey = "dump" | "service";
+
+type ServiceDimensionKey = "length" | "width" | "height" | "ca";
+
+type DumpDimensionKey =
+  | "length"
+  | "sideHeight"
+  | "bodyStyle"
+  | "rearGate"
+  | "asphaltGate"
+  | "tailgateAngle"
+  | "hoist"
+  | "cabGuard";
+
+type PricingOption = {
+  value: string;
+  label: string;
+  price: number;
+};
+
+type ServiceDimensionConfig = {
+  key: ServiceDimensionKey;
+  label: string;
+  placeholder: string;
+  options: PricingOption[];
+  defaultByLength?: Record<string, string>;
+};
+
+type ServiceBodyPricingConfig = {
+  baseDimensionKey: ServiceDimensionKey;
+  dimensions: ServiceDimensionConfig[];
+};
+
+type DumpDimensionConfig = {
+  key: DumpDimensionKey;
+  label: string;
+  placeholder: string;
+  options: PricingOption[];
+  defaultByLength?: Record<string, string>;
+};
+
+type DumpBodyPricingConfig = {
+  baseDimensionKey: DumpDimensionKey;
+  dimensions: DumpDimensionConfig[];
+};
 
 type BodyTypeOption = {
   key: BodyTypeKey;
@@ -27,11 +72,11 @@ const dropdownOptions = {
   ca: ["2.5m", "3.0m", "3.5m", "4.0m"],
   wb: ["3.0m", "3.5m", "4.0m", "4.5m", "5.0m"],
   fuelType: ["Diesel", "LNG", "Hybrid", "Electric"],
+  gvwr: ["33,000", "52,000", "66,000", "80,000"],
   rearWheelDriveType: ["Single", "Dual", "Tridem"],
 } as const;
 
-type ConfigState = {
-  bodyType: BodyTypeKey | "";
+type OemConfigState = {
   make: string;
   modelYear: string;
   cabStyle: string;
@@ -40,10 +85,487 @@ type ConfigState = {
   ca: string;
   wb: string;
   fuelType: string;
+  gvwr: string;
   rearWheelDriveType: string;
 };
 
-type DropdownField = keyof typeof dropdownOptions;
+type BodyTabKey = "oemChassis" | "bodyUi";
+
+type BodyConfigState = {
+  bodyType: BodyTypeKey | "";
+  dumpSelections: Record<DumpDimensionKey, string>;
+  serviceSelections: Record<ServiceDimensionKey, string>;
+};
+
+type SelectOption = {
+  value: string;
+  label: string;
+};
+
+type SelectFieldProps = {
+  label: string;
+  value: string;
+  placeholder: string;
+  options: readonly SelectOption[];
+  onChange: (value: string) => void;
+  icon: ReactNode;
+  helperText?: string;
+  disabled?: boolean;
+};
+
+type SelectIconTone = "blue" | "cyan" | "emerald" | "amber" | "violet" | "rose";
+
+const dumpBodyPricingConfig: DumpBodyPricingConfig = {
+  baseDimensionKey: "length",
+  dimensions: [
+    {
+      key: "length",
+      label: "Length",
+      placeholder: "Select Length",
+      options: [
+        { value: "336", label: "336", price: 47740 },
+        { value: "360", label: "360", price: 51715 },
+        { value: "384", label: "384", price: 55690 },
+        { value: "192", label: "192", price: 47740 },
+        { value: "216", label: "216", price: 47740 },
+      ],
+    },
+    {
+      key: "sideHeight",
+      label: "Side Height",
+      placeholder: "Select Side Height",
+      options: [
+        { value: "57", label: "57", price: 0 },
+        { value: "60", label: "60", price: 800 },
+        { value: "63", label: "63", price: 1600 },
+      ],
+      defaultByLength: {
+        "192": "57",
+        "216": "57",
+        "336": "57",
+        "360": "60",
+        "384": "63",
+      },
+    },
+    {
+      key: "bodyStyle",
+      label: "Body Style",
+      placeholder: "Select Body Style",
+      options: [
+        { value: "Square", label: "Square", price: 0 },
+        { value: "Tapered", label: "Tapered", price: 400 },
+        { value: "Elliptical", label: "Elliptical", price: 600 },
+      ],
+      defaultByLength: {
+        "192": "Square",
+        "216": "Square",
+        "336": "Square",
+        "360": "Tapered",
+        "384": "Elliptical",
+      },
+    },
+    {
+      key: "rearGate",
+      label: "Rear Gate",
+      placeholder: "Select Rear Gate",
+      options: [
+        { value: "Cargo Door", label: "Cargo Door", price: 0 },
+        { value: "Lift Door", label: "Lift Door", price: 1200 },
+      ],
+      defaultByLength: {
+        "192": "Cargo Door",
+        "216": "Cargo Door",
+        "336": "Cargo Door",
+        "360": "Cargo Door",
+        "384": "Lift Door",
+      },
+    },
+    {
+      key: "asphaltGate",
+      label: "Asphalt Gate",
+      placeholder: "Select Asphalt Gate",
+      options: [
+        { value: "No", label: "No", price: 0 },
+        { value: "1", label: "1", price: 100 },
+        { value: "2", label: "2", price: 175 },
+        { value: "3", label: "3", price: 250 },
+      ],
+      defaultByLength: {
+        "192": "No",
+        "216": "No",
+        "336": "No",
+        "360": "1",
+        "384": "2",
+      },
+    },
+    {
+      key: "tailgateAngle",
+      label: "Tailgate Angle",
+      placeholder: "Select Tailgate Angle",
+      options: [
+        { value: "90°", label: "90°", price: 0 },
+        { value: "20°", label: "20°", price: 125 },
+      ],
+      defaultByLength: {
+        "192": "90°",
+        "216": "90°",
+        "336": "90°",
+        "360": "20°",
+        "384": "20°",
+      },
+    },
+    {
+      key: "hoist",
+      label: "Hoist",
+      placeholder: "Select Hoist",
+      options: [
+        { value: "Power Up", label: "Power Up", price: 0 },
+        { value: "Power Up & Down", label: "Power Up & Down", price: 750 },
+      ],
+      defaultByLength: {
+        "192": "Power Up",
+        "216": "Power Up",
+        "336": "Power Up",
+        "360": "Power Up & Down",
+        "384": "Power Up & Down",
+      },
+    },
+    {
+      key: "cabGuard",
+      label: "Cab Guard",
+      placeholder: "Select Cab Guard",
+      options: [
+        { value: "Yes", label: "Yes", price: 780 },
+        { value: "No", label: "No", price: 0 },
+      ],
+      defaultByLength: {
+        "192": "Yes",
+        "216": "Yes",
+        "336": "Yes",
+        "360": "No",
+        "384": "No",
+      },
+    },
+  ],
+};
+
+const serviceBodyPricingConfig: ServiceBodyPricingConfig = {
+  baseDimensionKey: "length",
+  dimensions: [
+    {
+      key: "length",
+      label: "Length",
+      placeholder: "Select Length",
+      options: [
+        { value: "82", label: "82", price: 10965 },
+        { value: "97", label: "97", price: 11560 },
+        { value: "108", label: "108", price: 12980 },
+        { value: "130", label: "130", price: 14590 },
+        { value: "134", label: "134", price: 15280 },
+      ],
+    },
+    {
+      key: "width",
+      label: "Width",
+      placeholder: "Select Width",
+      options: [
+        { value: "78", label: "78", price: 0 },
+        { value: "80", label: "80", price: 350 },
+        { value: "82", label: "82", price: 550 },
+        { value: "94", label: "94", price: 965 },
+      ],
+      defaultByLength: {
+        "82": "78",
+        "97": "80",
+        "108": "94",
+        "130": "82",
+        "134": "78",
+      },
+    },
+    {
+      key: "height",
+      label: "Height",
+      placeholder: "Select Height",
+      options: [
+        { value: "36", label: "36", price: 0 },
+        { value: "40", label: "40", price: 125 },
+        { value: "43", label: "43", price: 185 },
+        { value: "46", label: "46", price: 235 },
+        { value: "60", label: "60", price: 400 },
+      ],
+      defaultByLength: {
+        "82": "36",
+        "97": "40",
+        "108": "43",
+        "130": "46",
+        "134": "60",
+      },
+    },
+    {
+      key: "ca",
+      label: "CA",
+      placeholder: "Select CA",
+      options: [
+        { value: "40", label: "40", price: 0 },
+        { value: "56", label: "56", price: 40 },
+        { value: "60", label: "60", price: 90 },
+        { value: "82", label: "82", price: 140 },
+        { value: "84", label: "84", price: 160 },
+      ],
+      defaultByLength: {
+        "82": "40",
+        "97": "56",
+        "108": "60",
+        "130": "82",
+        "134": "84",
+      },
+    },
+  ],
+};
+
+const selectIconToneByLabel: Partial<Record<string, SelectIconTone>> = {
+  Make: "emerald",
+  "Model Year": "violet",
+  "Cab Style": "cyan",
+  "Model Name": "amber",
+  "Cab Type": "rose",
+  CA: "blue",
+  WB: "cyan",
+  "Fuel Type": "amber",
+  GVWR: "violet",
+  "Rear Wheel Drive Type": "emerald",
+  "Body Type": "blue",
+  Length: "cyan",
+  "Base Price": "emerald",
+  "Side Height": "violet",
+  "Body Style": "amber",
+  Width: "violet",
+  Height: "amber",
+  "Rear Gate": "rose",
+  "Asphalt Gate": "rose",
+  "Tailgate Angle": "cyan",
+  Hoist: "blue",
+  "Cab Guard": "emerald",
+};
+
+const selectFieldClasses: {
+  card: string;
+  label: string;
+  input: string;
+  chevron: string;
+} = {
+  card: "border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.98))] shadow-[0_12px_26px_rgba(15,23,42,0.06)]",
+  label: "text-slate-800",
+  input: "border-slate-200 bg-white hover:border-slate-300 focus:border-blue-500 focus:ring-blue-500/10",
+  chevron: "border-slate-200 bg-slate-50 text-slate-500",
+};
+
+const selectIconToneClasses: Record<SelectIconTone, { rail: string; badge: string }> = {
+  blue: {
+    rail: "border-blue-100 bg-[linear-gradient(180deg,#eff6ff_0%,#dbeafe_100%)]",
+    badge: "border-blue-100 bg-white/80 text-blue-700 shadow-[0_8px_18px_rgba(59,130,246,0.14)]",
+  },
+  cyan: {
+    rail: "border-cyan-100 bg-[linear-gradient(180deg,#ecfeff_0%,#cffafe_100%)]",
+    badge: "border-cyan-100 bg-white/80 text-cyan-700 shadow-[0_8px_18px_rgba(6,182,212,0.14)]",
+  },
+  emerald: {
+    rail: "border-emerald-100 bg-[linear-gradient(180deg,#ecfdf5_0%,#d1fae5_100%)]",
+    badge: "border-emerald-100 bg-white/80 text-emerald-700 shadow-[0_8px_18px_rgba(16,185,129,0.14)]",
+  },
+  amber: {
+    rail: "border-amber-100 bg-[linear-gradient(180deg,#fffbeb_0%,#fde68a_100%)]",
+    badge: "border-amber-100 bg-white/85 text-amber-700 shadow-[0_8px_18px_rgba(245,158,11,0.14)]",
+  },
+  violet: {
+    rail: "border-violet-100 bg-[linear-gradient(180deg,#f5f3ff_0%,#ede9fe_100%)]",
+    badge: "border-violet-100 bg-white/80 text-violet-700 shadow-[0_8px_18px_rgba(139,92,246,0.14)]",
+  },
+  rose: {
+    rail: "border-rose-100 bg-[linear-gradient(180deg,#fff1f2_0%,#ffe4e6_100%)]",
+    badge: "border-rose-100 bg-white/80 text-rose-700 shadow-[0_8px_18px_rgba(244,63,94,0.14)]",
+  },
+};
+
+const toSelectOptions = (options: readonly string[]): SelectOption[] =>
+  options.map((option) => ({ value: option, label: option }));
+
+const toPricingSelectOptions = (options: PricingOption[]): SelectOption[] =>
+  options.map((option) => ({ value: option.value, label: option.label }));
+
+const toSingleOption = (value: string): SelectOption[] => [{ value, label: value }];
+
+const formatCurrency = (value: number): string =>
+  `$${value.toLocaleString("en-US", { minimumFractionDigits: 0 })}`;
+
+const getDumpDimensionByKey = (
+  config: DumpBodyPricingConfig,
+  key: DumpDimensionKey
+): DumpDimensionConfig =>
+  config.dimensions.find((dimension) => dimension.key === key)
+  ?? config.dimensions[0];
+
+const getDumpOptionPrice = (
+  config: DumpBodyPricingConfig,
+  key: DumpDimensionKey,
+  value: string
+): number => {
+  const dimension = getDumpDimensionByKey(config, key);
+  const option = dimension.options.find((item) => item.value === value);
+  return option?.price ?? 0;
+};
+
+const getDumpTotalPrice = (
+  config: DumpBodyPricingConfig,
+  selections: Record<DumpDimensionKey, string>
+): number => {
+  const selectedBaseValue = selections[config.baseDimensionKey];
+  if (!selectedBaseValue) {
+    return 0;
+  }
+
+  return config.dimensions.reduce((total, dimension) => {
+    const selectedValue = selections[dimension.key];
+    if (!selectedValue) {
+      return total;
+    }
+
+    return total + getDumpOptionPrice(config, dimension.key, selectedValue);
+  }, 0);
+};
+
+const getDumpAutoSelectionsByLength = (
+  config: DumpBodyPricingConfig,
+  lengthValue: string
+): Record<DumpDimensionKey, string> => {
+  const nextSelections: Record<DumpDimensionKey, string> = {
+    length: lengthValue,
+    sideHeight: "",
+    bodyStyle: "",
+    rearGate: "",
+    asphaltGate: "",
+    tailgateAngle: "",
+    hoist: "",
+    cabGuard: "",
+  };
+
+  (config.dimensions.filter((dimension) => dimension.key !== "length") as DumpDimensionConfig[])
+    .forEach((dimension) => {
+      const defaultValue = dimension.defaultByLength?.[lengthValue] ?? dimension.options[0]?.value ?? "";
+      nextSelections[dimension.key] = defaultValue;
+    });
+
+  return nextSelections;
+};
+
+const getDimensionByKey = (
+  config: ServiceBodyPricingConfig,
+  key: ServiceDimensionKey
+): ServiceDimensionConfig =>
+  config.dimensions.find((dimension) => dimension.key === key)
+  ?? config.dimensions[0];
+
+const getOptionPrice = (
+  config: ServiceBodyPricingConfig,
+  key: ServiceDimensionKey,
+  value: string
+): number => {
+  const dimension = getDimensionByKey(config, key);
+  const option = dimension.options.find((item) => item.value === value);
+  return option?.price ?? 0;
+};
+
+const getAutoSelectionsByBaseDimension = (
+  config: ServiceBodyPricingConfig,
+  baseValue: string
+): Record<ServiceDimensionKey, string> => {
+  const nextSelections: Record<ServiceDimensionKey, string> = {
+    length: "",
+    width: "",
+    height: "",
+    ca: "",
+  };
+  nextSelections[config.baseDimensionKey] = baseValue;
+
+  (config.dimensions.filter((dimension) => dimension.key !== config.baseDimensionKey) as ServiceDimensionConfig[])
+    .forEach((dimension) => {
+      const defaultValue = dimension.defaultByLength?.[baseValue] ?? dimension.options[0]?.value ?? "";
+      nextSelections[dimension.key] = defaultValue;
+    });
+
+  return nextSelections;
+};
+
+const getTotalPriceFromSelections = (
+  config: ServiceBodyPricingConfig,
+  selections: Record<ServiceDimensionKey, string>
+): number => {
+  const selectedBaseValue = selections[config.baseDimensionKey];
+  if (!selectedBaseValue) {
+    return 0;
+  }
+
+  return config.dimensions.reduce((total, dimension) => {
+    const selectedValue = selections[dimension.key];
+    if (!selectedValue) {
+      return total;
+    }
+
+    return total + getOptionPrice(config, dimension.key, selectedValue);
+  }, 0);
+};
+
+function SelectField({
+  label,
+  value,
+  placeholder,
+  options,
+  onChange,
+  icon,
+  helperText,
+  disabled,
+}: SelectFieldProps) {
+  const selectId = useId();
+  const iconTone = selectIconToneByLabel[label] ?? "blue";
+  const iconToneClass = selectIconToneClasses[iconTone];
+
+  return (
+    <div className={`grid grid-cols-[64px_1fr] gap-3 rounded-2xl border p-3.5 ${selectFieldClasses.card}`}>
+      <span className={`inline-flex h-full min-h-[92px] items-center justify-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] ${iconToneClass.rail}`}>
+        <span className={`relative inline-flex h-11 w-11 items-center justify-center rounded-xl border [&_svg]:h-[20px] [&_svg]:w-[20px] ${iconToneClass.badge}`}>
+          {icon}
+        </span>
+      </span>
+      <div className="flex flex-col justify-center">
+        <label htmlFor={selectId} className={`text-sm font-semibold tracking-[0.01em] ${selectFieldClasses.label}`}>
+          {label}
+        </label>
+        <div className="relative mt-2">
+          <select
+            id={selectId}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
+            className={`h-12 w-full appearance-none rounded-xl border px-4 pr-11 text-sm font-medium text-slate-900 shadow-[0_4px_14px_rgba(15,23,42,0.04)] transition-all duration-200 disabled:cursor-not-allowed disabled:bg-slate-100/80 disabled:text-slate-500 focus:outline-none focus:ring-4 ${selectFieldClasses.input}`}
+          >
+            <option value="">{placeholder}</option>
+            {options.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <span className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border p-1 ${selectFieldClasses.chevron}`}>
+            <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
+              <path d="M5.75 7.75 10 12l4.25-4.25" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        </div>
+      </div>
+      {helperText ? <p className="col-span-2 mt-0.5 text-xs text-slate-500">{helperText}</p> : null}
+    </div>
+  );
+}
 
 function BridgeModel({ modelPath }: { modelPath: string }) {
   const { scene } = useGLTF(modelPath);
@@ -115,10 +637,260 @@ function BridgeScene({ selectedBodyType }: { selectedBodyType: BodyTypeKey | "" 
   );
 }
 
+type DumpBodyConfiguratorProps = {
+  selections: Record<DumpDimensionKey, string>;
+  onSelectionChange: (field: DumpDimensionKey, value: string) => void;
+};
+
+function DumpBodyConfigurator({ selections, onSelectionChange }: DumpBodyConfiguratorProps) {
+  const lengthDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "length");
+  const sideHeightDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "sideHeight");
+  const bodyStyleDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "bodyStyle");
+  const rearGateDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "rearGate");
+  const asphaltGateDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "asphaltGate");
+  const tailgateAngleDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "tailgateAngle");
+  const hoistDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "hoist");
+  const cabGuardDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "cabGuard");
+
+  return (
+    <div className="space-y-5">
+      <SelectField
+        label={lengthDimension.label}
+        value={selections.length}
+        onChange={(value) => onSelectionChange("length", value)}
+        placeholder={lengthDimension.placeholder}
+        options={toPricingSelectOptions(lengthDimension.options)}
+        helperText={selections.length
+          ? `Base Price: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "length", selections.length))}`
+          : "Select length to start dump pricing."}
+        icon={
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M3.5 12h17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M7 9.5 4.5 12 7 14.5M17 9.5 19.5 12 17 14.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        }
+      />
+
+      <SelectField
+        label={sideHeightDimension.label}
+        value={selections.sideHeight}
+        onChange={(value) => onSelectionChange("sideHeight", value)}
+        placeholder={sideHeightDimension.placeholder}
+        options={toPricingSelectOptions(sideHeightDimension.options)}
+        disabled={!selections.length}
+        helperText={selections.length
+          ? `Price Diff: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "sideHeight", selections.sideHeight))}`
+          : "Select length first"}
+        icon={
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M5 18V6M19 18V6M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        }
+      />
+
+      <SelectField
+        label={bodyStyleDimension.label}
+        value={selections.bodyStyle}
+        onChange={(value) => onSelectionChange("bodyStyle", value)}
+        placeholder={bodyStyleDimension.placeholder}
+        options={toPricingSelectOptions(bodyStyleDimension.options)}
+        disabled={!selections.length}
+        helperText={selections.length
+          ? `Price Diff: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "bodyStyle", selections.bodyStyle))}`
+          : "Select length first"}
+        icon={
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M4 16V9.5L12 5l8 4.5V16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M4 12h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        }
+      />
+
+      <SelectField
+        label={rearGateDimension.label}
+        value={selections.rearGate}
+        onChange={(value) => onSelectionChange("rearGate", value)}
+        placeholder={rearGateDimension.placeholder}
+        options={toPricingSelectOptions(rearGateDimension.options)}
+        disabled={!selections.length}
+        helperText={selections.length
+          ? `Price Diff: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "rearGate", selections.rearGate))}`
+          : "Select length first"}
+        icon={
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M6 7h12v10H6z" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M6 12h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        }
+      />
+
+      <SelectField
+        label={asphaltGateDimension.label}
+        value={selections.asphaltGate}
+        onChange={(value) => onSelectionChange("asphaltGate", value)}
+        placeholder={asphaltGateDimension.placeholder}
+        options={toPricingSelectOptions(asphaltGateDimension.options)}
+        disabled={!selections.length}
+        helperText={selections.length
+          ? `Price Diff: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "asphaltGate", selections.asphaltGate))}`
+          : "Select length first"}
+        icon={
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M6 7h12v10H6z" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M6 12h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        }
+      />
+
+      <SelectField
+        label={tailgateAngleDimension.label}
+        value={selections.tailgateAngle}
+        onChange={(value) => onSelectionChange("tailgateAngle", value)}
+        placeholder={tailgateAngleDimension.placeholder}
+        options={toPricingSelectOptions(tailgateAngleDimension.options)}
+        disabled={!selections.length}
+        helperText={selections.length
+          ? `Price Diff: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "tailgateAngle", selections.tailgateAngle))}`
+          : "Select length first"}
+        icon={
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M5 16h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M15 16 19 9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        }
+      />
+
+      <SelectField
+        label={hoistDimension.label}
+        value={selections.hoist}
+        onChange={(value) => onSelectionChange("hoist", value)}
+        placeholder={hoistDimension.placeholder}
+        options={toPricingSelectOptions(hoistDimension.options)}
+        disabled={!selections.length}
+        helperText={selections.length
+          ? `Price Diff: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "hoist", selections.hoist))}`
+          : "Select length first"}
+        icon={
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M6 16V9h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M15 6h3v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M9 18h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        }
+      />
+
+      <SelectField
+        label={cabGuardDimension.label}
+        value={selections.cabGuard}
+        onChange={(value) => onSelectionChange("cabGuard", value)}
+        placeholder={cabGuardDimension.placeholder}
+        options={toPricingSelectOptions(cabGuardDimension.options)}
+        disabled={!selections.length}
+        helperText={selections.length
+          ? `Price Diff: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "cabGuard", selections.cabGuard))}`
+          : "Select length first"}
+        icon={
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M6 18V8l6-3 6 3v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M9 12h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        }
+      />
+    </div>
+  );
+}
+
+type ServiceBodyConfiguratorProps = {
+  selections: Record<ServiceDimensionKey, string>;
+  onLengthChange: (value: string) => void;
+  onDimensionChange: (field: Exclude<ServiceDimensionKey, "length">, value: string) => void;
+};
+
+function ServiceBodyConfigurator({ selections, onLengthChange, onDimensionChange }: ServiceBodyConfiguratorProps) {
+  const lengthDimension = getDimensionByKey(serviceBodyPricingConfig, "length");
+  const widthDimension = getDimensionByKey(serviceBodyPricingConfig, "width");
+  const heightDimension = getDimensionByKey(serviceBodyPricingConfig, "height");
+  const caDimension = getDimensionByKey(serviceBodyPricingConfig, "ca");
+
+  const widthPriceDiff = selections.width ? getOptionPrice(serviceBodyPricingConfig, "width", selections.width) : 0;
+  const heightPriceDiff = selections.height ? getOptionPrice(serviceBodyPricingConfig, "height", selections.height) : 0;
+  const caPriceDiff = selections.ca ? getOptionPrice(serviceBodyPricingConfig, "ca", selections.ca) : 0;
+
+  return (
+    <div className="space-y-5">
+      <SelectField
+        label={lengthDimension.label}
+        value={selections.length}
+        onChange={onLengthChange}
+        placeholder={lengthDimension.placeholder}
+        options={toPricingSelectOptions(lengthDimension.options)}
+        helperText={selections.length
+          ? `Base Price: ${formatCurrency(getOptionPrice(serviceBodyPricingConfig, "length", selections.length))}`
+          : "Choose length to auto-fill Width, Height, and CA."}
+        icon={
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M3.5 12h17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M7 9.5 4.5 12 7 14.5M17 9.5 19.5 12 17 14.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        }
+      />
+
+      <SelectField
+        label={widthDimension.label}
+        value={selections.width}
+        onChange={(value) => onDimensionChange("width", value)}
+        placeholder={widthDimension.placeholder}
+        options={toPricingSelectOptions(widthDimension.options)}
+        disabled={!selections.length}
+        helperText={selections.length ? `Price Diff: ${formatCurrency(widthPriceDiff)}` : "Select length first"}
+        icon={
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M3.5 12h17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M7 9.5 4.5 12 7 14.5M17 9.5 19.5 12 17 14.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        }
+      />
+
+      <SelectField
+        label={heightDimension.label}
+        value={selections.height}
+        onChange={(value) => onDimensionChange("height", value)}
+        placeholder={heightDimension.placeholder}
+        options={toPricingSelectOptions(heightDimension.options)}
+        disabled={!selections.length}
+        helperText={selections.length ? `Price Diff: ${formatCurrency(heightPriceDiff)}` : "Select length first"}
+        icon={
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M12 4v16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M9.5 7 12 4.5 14.5 7M9.5 17 12 19.5 14.5 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        }
+      />
+
+      <SelectField
+        label={caDimension.label}
+        value={selections.ca}
+        onChange={(value) => onDimensionChange("ca", value)}
+        placeholder={caDimension.placeholder}
+        options={toPricingSelectOptions(caDimension.options)}
+        disabled={!selections.length}
+        helperText={selections.length ? `Price Diff: ${formatCurrency(caPriceDiff)}` : "Select length first"}
+        icon={
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M4 12h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M4 9v6M20 9v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M10 9l-2 3 2 3M14 9l2 3-2 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        }
+      />
+    </div>
+  );
+}
+
 export default function ConfigurePage() {
   const [activeTab, setActiveTab] = useState("configure");
-  const [config, setConfig] = useState<ConfigState>({
-    bodyType: "dump",
+  const [activeBodyTab, setActiveBodyTab] = useState<BodyTabKey>("oemChassis");
+  const [oemConfig, setOemConfig] = useState<OemConfigState>({
     make: "",
     modelYear: "",
     cabStyle: "",
@@ -127,42 +899,83 @@ export default function ConfigurePage() {
     ca: "",
     wb: "",
     fuelType: "",
+    gvwr: "",
     rearWheelDriveType: "",
   });
+  const [bodyConfig, setBodyConfig] = useState<BodyConfigState>({
+    bodyType: "",
+    dumpSelections: {
+      length: "",
+      sideHeight: "",
+      bodyStyle: "",
+      rearGate: "",
+      asphaltGate: "",
+      tailgateAngle: "",
+      hoist: "",
+      cabGuard: "",
+    },
+    serviceSelections: {
+      length: "",
+      width: "",
+      height: "",
+      ca: "",
+    },
+  });
 
-  const price = 45299.99;
-
-  const handleChange = (field: string, value: string) => {
-    setConfig((prev) => ({ ...prev, [field]: value }));
+  const handleOemChange = (field: keyof OemConfigState, value: string) => {
+    setOemConfig((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleBodyTypeChange = (value: string) => {
-    setConfig((prev) => ({ ...prev, bodyType: value as BodyTypeKey | "" }));
+    setBodyConfig((prev) => ({ ...prev, bodyType: value as BodyTypeKey | "" }));
+  };
+
+  const handleDumpSelectionChange = (field: DumpDimensionKey, value: string) => {
+    if (field === "length") {
+      setBodyConfig((prev) => ({
+        ...prev,
+        dumpSelections: getDumpAutoSelectionsByLength(dumpBodyPricingConfig, value),
+      }));
+      return;
+    }
+
+    setBodyConfig((prev) => ({
+      ...prev,
+      dumpSelections: {
+        ...prev.dumpSelections,
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleServiceLengthChange = (value: string) => {
+    setBodyConfig((prev) => ({
+      ...prev,
+      serviceSelections: getAutoSelectionsByBaseDimension(serviceBodyPricingConfig, value),
+    }));
+  };
+
+  const handleServiceDimensionChange = (field: Exclude<ServiceDimensionKey, "length">, value: string) => {
+    setBodyConfig((prev) => ({
+      ...prev,
+      serviceSelections: {
+        ...prev.serviceSelections,
+        [field]: value,
+      },
+    }));
   };
 
   const totalPrice = useMemo(() => {
-    const getSelectionCost = (options: readonly string[], selectedValue: string) => {
-      if (!selectedValue) {
-        return 0;
-      }
+    if (bodyConfig.bodyType === "dump") {
+      return getDumpTotalPrice(dumpBodyPricingConfig, bodyConfig.dumpSelections);
+    }
 
-      const selectedIndex = options.indexOf(selectedValue);
-      if (selectedIndex < 0) {
-        return 0;
-      }
+    if (bodyConfig.bodyType === "service") {
+      return getTotalPriceFromSelections(serviceBodyPricingConfig, bodyConfig.serviceSelections);
+    }
 
-      return selectedIndex % 2 === 0 ? 100 : 200;
-    };
-
-    let runningTotal = 100;
-    runningTotal += getSelectionCost(bodyTypeOptions.map((option) => option.key), config.bodyType);
-
-    (Object.keys(dropdownOptions) as DropdownField[]).forEach((field) => {
-      runningTotal += getSelectionCost(dropdownOptions[field], config[field]);
-    });
-
-    return runningTotal;
-  }, [config]);
+    return 0;
+  }, [bodyConfig.bodyType, bodyConfig.dumpSelections, bodyConfig.serviceSelections]);
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -178,7 +991,7 @@ export default function ConfigurePage() {
               </svg>
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg font-bold leading-tight tracking-tight">Jaydu</h1>
+              <h1 className="text-lg font-bold leading-tight tracking-tight">{APP_NAME}</h1>
               <p className="text-xs text-blue-100/80">Configurator</p>
             </div>
           </div>
@@ -187,7 +1000,7 @@ export default function ConfigurePage() {
           <div className="mb-8 rounded-[20px] border border-white/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.08))] px-4 py-4 shadow-xl backdrop-blur-xl">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-100/80">Estimated Price</p>
             <p className="mt-2 text-3xl font-bold text-white">${totalPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
-            <p className="mt-2 text-xs text-blue-100/75">Live quote with selected chassis package</p>
+            <p className="mt-2 text-xs text-blue-100/75">Starts after Body Type selection</p>
           </div>
 
           {/* Navigation Tabs */}
@@ -220,180 +1033,218 @@ export default function ConfigurePage() {
         {activeTab === "configure" && (
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
             {/* Left Section - Configuration */}
-            <div className="space-y-6">
+            <div className="relative z-20 space-y-6">
               <div>
                 <h2 className="mb-6 text-xl font-semibold text-gray-900">Vehicle Configuration</h2>
+
+                <div className="relative z-30 isolate mb-6 grid grid-cols-2 rounded-xl border border-blue-200 bg-blue-50/80 p-1 shadow-sm pointer-events-auto">
+                  <button
+                    type="button"
+                    onClick={() => setActiveBodyTab("oemChassis")}
+                    onMouseDown={() => setActiveBodyTab("oemChassis")}
+                    className={`rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                      activeBodyTab === "oemChassis"
+                        ? "bg-white text-blue-700 shadow-sm"
+                        : "text-blue-900/75 hover:text-blue-900"
+                    }`}
+                  >
+                    OEM Chassis
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveBodyTab("bodyUi")}
+                    onMouseDown={() => setActiveBodyTab("bodyUi")}
+                    className={`rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                      activeBodyTab === "bodyUi"
+                        ? "bg-white text-blue-700 shadow-sm"
+                        : "text-blue-900/75 hover:text-blue-900"
+                    }`}
+                  >
+                    Body UI
+                  </button>
+                </div>
+
                 <div className="space-y-5">
-                  {/* Body Type */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Body Type</label>
-                    <select
-                      value={config.bodyType}
-                      onChange={(e) => handleBodyTypeChange(e.target.value)}
-                      className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    >
-                      <option value="">Select Body Type</option>
-                      {bodyTypeOptions.map((opt) => (
-                        <option key={opt.key} value={opt.key}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1 text-xs text-gray-500">Choose one body type to preview the matching 3D model.</p>
-                  </div>
+                  {activeBodyTab === "oemChassis" && (
+                    <>
+                      <SelectField
+                        label="Make"
+                        value={oemConfig.make}
+                        onChange={(value) => handleOemChange("make", value)}
+                        placeholder="Select Make"
+                        options={toSelectOptions(dropdownOptions.make)}
+                        icon={
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                            <path d="M4 14h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                            <path d="M6 14V10l2-3h8l2 3v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            <circle cx="8" cy="16" r="1.5" fill="currentColor" />
+                            <circle cx="16" cy="16" r="1.5" fill="currentColor" />
+                          </svg>
+                        }
+                      />
 
-                  {/* Make */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Make</label>
-                    <select
-                      value={config.make}
-                      onChange={(e) => handleChange("make", e.target.value)}
-                      className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    >
-                      <option value="">Select Make</option>
-                      {dropdownOptions.make.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      <SelectField
+                        label="Model Year"
+                        value={oemConfig.modelYear}
+                        onChange={(value) => handleOemChange("modelYear", value)}
+                        placeholder="Select Year"
+                        options={toSelectOptions(dropdownOptions.modelYear)}
+                        icon={
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                            <rect x="4" y="6" width="16" height="14" rx="2" stroke="currentColor" strokeWidth="1.8" />
+                            <path d="M8 4v4M16 4v4M4 10h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                          </svg>
+                        }
+                      />
 
-                  {/* Model Year */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Model Year</label>
-                    <select
-                      value={config.modelYear}
-                      onChange={(e) => handleChange("modelYear", e.target.value)}
-                      className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    >
-                      <option value="">Select Year</option>
-                      {dropdownOptions.modelYear.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      <SelectField
+                        label="Cab Style"
+                        value={oemConfig.cabStyle}
+                        onChange={(value) => handleOemChange("cabStyle", value)}
+                        placeholder="Select Cab Style"
+                        options={toSelectOptions(dropdownOptions.cabStyle)}
+                        icon={
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                            <path d="M6 17V9h9l3 3v5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M15 9v3h3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        }
+                      />
 
-                  {/* Cab Style */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Cab Style</label>
-                    <select
-                      value={config.cabStyle}
-                      onChange={(e) => handleChange("cabStyle", e.target.value)}
-                      className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    >
-                      <option value="">Select Cab Style</option>
-                      {dropdownOptions.cabStyle.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      <SelectField
+                        label="Model Name"
+                        value={oemConfig.modelName}
+                        onChange={(value) => handleOemChange("modelName", value)}
+                        placeholder="Select Model"
+                        options={toSelectOptions(dropdownOptions.modelName)}
+                        icon={
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                            <path d="M5 7h14v10H5z" stroke="currentColor" strokeWidth="1.8" />
+                            <path d="M9 11h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                          </svg>
+                        }
+                      />
 
-                  {/* Model Name */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Model Name</label>
-                    <select
-                      value={config.modelName}
-                      onChange={(e) => handleChange("modelName", e.target.value)}
-                      className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    >
-                      <option value="">Select Model</option>
-                      {dropdownOptions.modelName.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      <SelectField
+                        label="Cab Type"
+                        value={oemConfig.cabType}
+                        onChange={(value) => handleOemChange("cabType", value)}
+                        placeholder="Select Cab Type"
+                        options={toSelectOptions(dropdownOptions.cabType)}
+                        icon={
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                            <path d="M6 18v-7h12v7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M9 11V8h6v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        }
+                      />
 
-                  {/* Cab Type */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Cab Type</label>
-                    <select
-                      value={config.cabType}
-                      onChange={(e) => handleChange("cabType", e.target.value)}
-                      className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    >
-                      <option value="">Select Cab Type</option>
-                      {dropdownOptions.cabType.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      <SelectField
+                        label="CA"
+                        value={oemConfig.ca}
+                        onChange={(value) => handleOemChange("ca", value)}
+                        placeholder="Select CA"
+                        options={toSelectOptions(dropdownOptions.ca)}
+                        icon={
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                            <path d="M4 12h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                            <path d="M4 9v6M20 9v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                            <path d="M10 9l-2 3 2 3M14 9l2 3-2 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        }
+                      />
 
-                  {/* CA (Cab to Axle) */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">CA (Cab to Axle)</label>
-                    <select
-                      value={config.ca}
-                      onChange={(e) => handleChange("ca", e.target.value)}
-                      className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    >
-                      <option value="">Select CA</option>
-                      {dropdownOptions.ca.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      <SelectField
+                        label="WB"
+                        value={oemConfig.wb}
+                        onChange={(value) => handleOemChange("wb", value)}
+                        placeholder="Select WB"
+                        options={toSelectOptions(dropdownOptions.wb)}
+                        icon={
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                            <path d="M3.5 12h17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                            <path d="M7 9.5 4.5 12 7 14.5M17 9.5 19.5 12 17 14.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        }
+                      />
 
-                  {/* WB (Wheelbase) */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">WB (Wheelbase)</label>
-                    <select
-                      value={config.wb}
-                      onChange={(e) => handleChange("wb", e.target.value)}
-                      className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    >
-                      <option value="">Select WB</option>
-                      {dropdownOptions.wb.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      <SelectField
+                        label="Fuel Type"
+                        value={oemConfig.fuelType}
+                        onChange={(value) => handleOemChange("fuelType", value)}
+                        placeholder="Select Fuel Type"
+                        options={toSelectOptions(dropdownOptions.fuelType)}
+                        icon={
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                            <path d="M12 4c2.7 3 4 5.1 4 7.1A4 4 0 1 1 8 11c0-2 1.3-4.1 4-7Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        }
+                      />
 
-                  {/* Fuel Type */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Fuel Type</label>
-                    <select
-                      value={config.fuelType}
-                      onChange={(e) => handleChange("fuelType", e.target.value)}
-                      className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    >
-                      <option value="">Select Fuel Type</option>
-                      {dropdownOptions.fuelType.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      <SelectField
+                        label="GVWR"
+                        value={oemConfig.gvwr}
+                        onChange={(value) => handleOemChange("gvwr", value)}
+                        placeholder="Select GVWR"
+                        options={toSelectOptions(dropdownOptions.gvwr)}
+                        icon={
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                            <rect x="4" y="6" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.8" />
+                            <path d="M8 10h8M8 14h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                          </svg>
+                        }
+                      />
 
-                  {/* Rear Wheel Drive Type */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Rear Wheel Drive Type</label>
-                    <select
-                      value={config.rearWheelDriveType}
-                      onChange={(e) => handleChange("rearWheelDriveType", e.target.value)}
-                      className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    >
-                      <option value="">Select Drive Type</option>
-                      {dropdownOptions.rearWheelDriveType.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      <SelectField
+                        label="Rear Wheel Drive Type"
+                        value={oemConfig.rearWheelDriveType}
+                        onChange={(value) => handleOemChange("rearWheelDriveType", value)}
+                        placeholder="Select Drive Type"
+                        options={toSelectOptions(dropdownOptions.rearWheelDriveType)}
+                        icon={
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                            <circle cx="7.5" cy="16" r="2.3" stroke="currentColor" strokeWidth="1.8" />
+                            <circle cx="16.5" cy="16" r="2.3" stroke="currentColor" strokeWidth="1.8" />
+                            <path d="M6 9h9l3 3v2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        }
+                      />
+                    </>
+                  )}
+
+                  {activeBodyTab === "bodyUi" && (
+                    <>
+                      <SelectField
+                        label="Body Type"
+                        value={bodyConfig.bodyType}
+                        onChange={handleBodyTypeChange}
+                        placeholder="Select Body Type"
+                        options={bodyTypeOptions.map((opt) => ({ value: opt.key, label: opt.label }))}
+                        icon={
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                            <path d="M4 16V9.5L12 5l8 4.5V16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M4 12h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                          </svg>
+                        }
+                        helperText="Choose a body type to render its dedicated configuration UI."
+                      />
+
+                      {bodyConfig.bodyType === "dump" && (
+                        <DumpBodyConfigurator
+                          selections={bodyConfig.dumpSelections}
+                          onSelectionChange={handleDumpSelectionChange}
+                        />
+                      )}
+
+                      {bodyConfig.bodyType === "service" && (
+                        <ServiceBodyConfigurator
+                          selections={bodyConfig.serviceSelections}
+                          onLengthChange={handleServiceLengthChange}
+                          onDimensionChange={handleServiceDimensionChange}
+                        />
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -409,7 +1260,7 @@ export default function ConfigurePage() {
             </div>
 
             {/* Right Section - 3D Preview */}
-            <div>
+            <div className="relative z-0">
               <h2 className="mb-6 text-xl font-semibold text-gray-900">Preview</h2>
               <div className="relative h-[600px] w-full overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-md">
                 <div className="absolute left-4 top-4 z-10 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm">
@@ -418,21 +1269,100 @@ export default function ConfigurePage() {
                 <div className="absolute bottom-4 left-4 z-10 rounded-lg bg-white px-3 py-2 text-xs text-gray-600 shadow-sm">
                   <p className="font-medium">Drag to rotate • Scroll to zoom</p>
                 </div>
-                <BridgeScene selectedBodyType={config.bodyType} />
+                <BridgeScene selectedBodyType={bodyConfig.bodyType} />
               </div>
 
               {/* Configuration Summary */}
               <div className="mt-6 rounded-lg bg-blue-50 p-4 border border-blue-100">
                 <p className="text-sm font-medium text-gray-900">Current Configuration</p>
                 <div className="mt-3 space-y-1 text-sm text-gray-600">
-                  {Object.entries(config).map(
+                  {Object.entries(oemConfig).map(
                     ([key, value]) =>
                       value && (
                         <div key={key} className="flex justify-between">
                           <span className="capitalize">{key.replace(/([A-Z])/g, " $1")}:</span>
-                          <span className="font-medium text-gray-900">{Array.isArray(value) ? value.join(", ") : value}</span>
+                          <span className="font-medium text-gray-900">{value}</span>
                         </div>
                       )
+                  )}
+
+                  {bodyConfig.bodyType && (
+                    <>
+                      <div className="flex justify-between">
+                        <span>Body Type:</span>
+                        <span className="font-medium text-gray-900">
+                          {bodyTypeOptions.find((opt) => opt.key === bodyConfig.bodyType)?.label ?? bodyConfig.bodyType}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span>Length:</span>
+                        <span className="font-medium text-gray-900">
+                          {bodyConfig.bodyType === "dump"
+                            ? (bodyConfig.dumpSelections.length || "-")
+                            : (bodyConfig.serviceSelections.length || "-")}
+                        </span>
+                      </div>
+
+                      {bodyConfig.bodyType === "dump" && (
+                        <>
+                          <div className="flex justify-between">
+                            <span>Side Height:</span>
+                            <span className="font-medium text-gray-900">{bodyConfig.dumpSelections.sideHeight || "-"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Body Style:</span>
+                            <span className="font-medium text-gray-900">{bodyConfig.dumpSelections.bodyStyle || "-"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Rear Gate:</span>
+                            <span className="font-medium text-gray-900">{bodyConfig.dumpSelections.rearGate || "-"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Asphalt Gate:</span>
+                            <span className="font-medium text-gray-900">{bodyConfig.dumpSelections.asphaltGate || "-"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Tailgate Angle:</span>
+                            <span className="font-medium text-gray-900">{bodyConfig.dumpSelections.tailgateAngle || "-"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Hoist:</span>
+                            <span className="font-medium text-gray-900">{bodyConfig.dumpSelections.hoist || "-"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Cab Guard:</span>
+                            <span className="font-medium text-gray-900">{bodyConfig.dumpSelections.cabGuard || "-"}</span>
+                          </div>
+                        </>
+                      )}
+
+                      {bodyConfig.bodyType === "service" && (
+                        <>
+                          <div className="flex justify-between">
+                            <span>Width:</span>
+                            <span className="font-medium text-gray-900">{bodyConfig.serviceSelections.width || "-"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Height:</span>
+                            <span className="font-medium text-gray-900">{bodyConfig.serviceSelections.height || "-"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>CA:</span>
+                            <span className="font-medium text-gray-900">{bodyConfig.serviceSelections.ca || "-"}</span>
+                          </div>
+                        </>
+                      )}
+
+                      <div className="flex justify-between">
+                        <span>Body Package Price:</span>
+                        <span className="font-medium text-gray-900">
+                          {bodyConfig.bodyType === "dump"
+                            ? formatCurrency(getDumpTotalPrice(dumpBodyPricingConfig, bodyConfig.dumpSelections))
+                            : formatCurrency(getTotalPriceFromSelections(serviceBodyPricingConfig, bodyConfig.serviceSelections))}
+                        </span>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
