@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, Suspense, useId, useMemo, useState } from "react";
+import { ReactNode, Suspense, useEffect, useId, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
 import { Box3, Vector3 } from "three";
@@ -55,13 +55,15 @@ type DumpBodyPricingConfig = {
 type BodyTypeOption = {
   key: BodyTypeKey;
   label: string;
-  modelPath: string;
+  modelFileName: string;
 };
 
 const bodyTypeOptions: BodyTypeOption[] = [
-  { key: "dump", label: "Dump Body", modelPath: "/model1.glb" },
-  { key: "service", label: "Service Body", modelPath: "/model2.glb" },
+  { key: "dump", label: "Dump Body", modelFileName: "dump_body.glb" },
+  { key: "service", label: "Service Body", modelFileName: "service_body.glb" },
 ];
+
+const modelBaseUrl = process.env.NEXT_PUBLIC_S3_DOMAIN_URL?.replace(/\/$/, "") ?? "";
 
 const dropdownOptions = {
   make: ["Volvo", "Scania", "MAN", "Daimler", "Renault"],
@@ -95,6 +97,15 @@ type BodyConfigState = {
   bodyType: BodyTypeKey | "";
   dumpSelections: Record<DumpDimensionKey, string>;
   serviceSelections: Record<ServiceDimensionKey, string>;
+};
+
+type DumpEditableDimensionKey = Exclude<DumpDimensionKey, "length">;
+
+type ServiceEditableDimensionKey = Exclude<ServiceDimensionKey, "length">;
+
+type BodyManualOverrideState = {
+  dump: Record<DumpEditableDimensionKey, boolean>;
+  service: Record<ServiceEditableDimensionKey, boolean>;
 };
 
 type SelectOption = {
@@ -458,6 +469,70 @@ const getDumpAutoSelectionsByLength = (
   return nextSelections;
 };
 
+const dumpEditableDimensionKeys: DumpEditableDimensionKey[] = [
+  "sideHeight",
+  "bodyStyle",
+  "rearGate",
+  "asphaltGate",
+  "tailgateAngle",
+  "hoist",
+  "cabGuard",
+];
+
+const getDumpDefaultSelectionByLength = (
+  config: DumpBodyPricingConfig,
+  key: DumpEditableDimensionKey,
+  lengthValue: string
+): string => {
+  const dimension = getDumpDimensionByKey(config, key);
+  return dimension.defaultByLength?.[lengthValue] ?? dimension.options[0]?.value ?? "";
+};
+
+const getDumpManualOverridesFromSelections = (
+  config: DumpBodyPricingConfig,
+  selections: Record<DumpDimensionKey, string>
+): Record<DumpEditableDimensionKey, boolean> => {
+  if (!selections.length) {
+    return {
+      sideHeight: false,
+      bodyStyle: false,
+      rearGate: false,
+      asphaltGate: false,
+      tailgateAngle: false,
+      hoist: false,
+      cabGuard: false,
+    };
+  }
+
+  return {
+    sideHeight: Boolean(selections.sideHeight) && selections.sideHeight !== getDumpDefaultSelectionByLength(config, "sideHeight", selections.length),
+    bodyStyle: Boolean(selections.bodyStyle) && selections.bodyStyle !== getDumpDefaultSelectionByLength(config, "bodyStyle", selections.length),
+    rearGate: Boolean(selections.rearGate) && selections.rearGate !== getDumpDefaultSelectionByLength(config, "rearGate", selections.length),
+    asphaltGate: Boolean(selections.asphaltGate) && selections.asphaltGate !== getDumpDefaultSelectionByLength(config, "asphaltGate", selections.length),
+    tailgateAngle: Boolean(selections.tailgateAngle) && selections.tailgateAngle !== getDumpDefaultSelectionByLength(config, "tailgateAngle", selections.length),
+    hoist: Boolean(selections.hoist) && selections.hoist !== getDumpDefaultSelectionByLength(config, "hoist", selections.length),
+    cabGuard: Boolean(selections.cabGuard) && selections.cabGuard !== getDumpDefaultSelectionByLength(config, "cabGuard", selections.length),
+  };
+};
+
+const mergeDumpSelectionsByLength = (
+  config: DumpBodyPricingConfig,
+  previousSelections: Record<DumpDimensionKey, string>,
+  lengthValue: string,
+  manualOverrides: Record<DumpEditableDimensionKey, boolean>
+): Record<DumpDimensionKey, string> => {
+  const autoSelections = getDumpAutoSelectionsByLength(config, lengthValue);
+  const nextSelections: Record<DumpDimensionKey, string> = { ...autoSelections };
+
+  dumpEditableDimensionKeys.forEach((key) => {
+    if (manualOverrides[key] && previousSelections[key]) {
+      nextSelections[key] = previousSelections[key];
+    }
+  });
+
+  return nextSelections;
+};
+
 const getDimensionByKey = (
   config: ServiceBodyPricingConfig,
   key: ServiceDimensionKey
@@ -492,6 +567,54 @@ const getAutoSelectionsByBaseDimension = (
       const defaultValue = dimension.defaultByLength?.[baseValue] ?? dimension.options[0]?.value ?? "";
       nextSelections[dimension.key] = defaultValue;
     });
+
+  return nextSelections;
+};
+
+const serviceEditableDimensionKeys: ServiceEditableDimensionKey[] = ["width", "height", "ca"];
+
+const getServiceDefaultSelectionByLength = (
+  config: ServiceBodyPricingConfig,
+  key: ServiceEditableDimensionKey,
+  lengthValue: string
+): string => {
+  const dimension = getDimensionByKey(config, key);
+  return dimension.defaultByLength?.[lengthValue] ?? dimension.options[0]?.value ?? "";
+};
+
+const getServiceManualOverridesFromSelections = (
+  config: ServiceBodyPricingConfig,
+  selections: Record<ServiceDimensionKey, string>
+): Record<ServiceEditableDimensionKey, boolean> => {
+  if (!selections.length) {
+    return {
+      width: false,
+      height: false,
+      ca: false,
+    };
+  }
+
+  return {
+    width: Boolean(selections.width) && selections.width !== getServiceDefaultSelectionByLength(config, "width", selections.length),
+    height: Boolean(selections.height) && selections.height !== getServiceDefaultSelectionByLength(config, "height", selections.length),
+    ca: Boolean(selections.ca) && selections.ca !== getServiceDefaultSelectionByLength(config, "ca", selections.length),
+  };
+};
+
+const mergeServiceSelectionsByLength = (
+  config: ServiceBodyPricingConfig,
+  previousSelections: Record<ServiceDimensionKey, string>,
+  lengthValue: string,
+  manualOverrides: Record<ServiceEditableDimensionKey, boolean>
+): Record<ServiceDimensionKey, string> => {
+  const autoSelections = getAutoSelectionsByBaseDimension(config, lengthValue);
+  const nextSelections: Record<ServiceDimensionKey, string> = { ...autoSelections };
+
+  serviceEditableDimensionKeys.forEach((key) => {
+    if (manualOverrides[key] && previousSelections[key]) {
+      nextSelections[key] = previousSelections[key];
+    }
+  });
 
   return nextSelections;
 };
@@ -567,9 +690,14 @@ function SelectField({
   );
 }
 
-function BridgeModel({ modelPath }: { modelPath: string }) {
+function BridgeModel({ modelPath, onReady }: { modelPath: string; onReady: () => void }) {
   const { scene } = useGLTF(modelPath);
   const model = useMemo(() => scene.clone(), [scene]);
+
+  useEffect(() => {
+    onReady();
+  }, [onReady]);
+
   const { groundedModel, scale } = useMemo(() => {
     const bounds = new Box3().setFromObject(model);
     const size = new Vector3();
@@ -593,10 +721,15 @@ function BridgeModel({ modelPath }: { modelPath: string }) {
   return <primitive object={groundedModel} scale={scale} />;
 }
 
-useGLTF.preload("/model1.glb");
-useGLTF.preload("/model2.glb");
-
-function BridgeScene({ selectedBodyType }: { selectedBodyType: BodyTypeKey | "" }) {
+function BridgeScene({
+  selectedBodyType,
+  modelPath,
+  onModelReady,
+}: {
+  selectedBodyType: BodyTypeKey | "";
+  modelPath: string | null;
+  onModelReady: () => void;
+}) {
   const visibleBodyType = bodyTypeOptions.find((option) => option.key === selectedBodyType);
 
   return (
@@ -617,10 +750,11 @@ function BridgeScene({ selectedBodyType }: { selectedBodyType: BodyTypeKey | "" 
       </mesh>
 
       <Suspense fallback={null}>
-        {visibleBodyType ? (
+        {visibleBodyType && modelPath ? (
           <BridgeModel
             key={visibleBodyType.key}
-            modelPath={visibleBodyType.modelPath}
+            modelPath={modelPath}
+            onReady={onModelReady}
           />
         ) : null}
       </Suspense>
@@ -890,6 +1024,7 @@ function ServiceBodyConfigurator({ selections, onLengthChange, onDimensionChange
 export default function ConfigurePage() {
   const [activeTab, setActiveTab] = useState("configure");
   const [activeBodyTab, setActiveBodyTab] = useState<BodyTabKey>("oemChassis");
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [oemConfig, setOemConfig] = useState<OemConfigState>({
     make: "",
     modelYear: "",
@@ -921,6 +1056,50 @@ export default function ConfigurePage() {
       ca: "",
     },
   });
+  const [manualOverrides, setManualOverrides] = useState<BodyManualOverrideState>({
+    dump: {
+      sideHeight: false,
+      bodyStyle: false,
+      rearGate: false,
+      asphaltGate: false,
+      tailgateAngle: false,
+      hoist: false,
+      cabGuard: false,
+    },
+    service: {
+      width: false,
+      height: false,
+      ca: false,
+    },
+  });
+
+  const resolvedModelPath = useMemo(() => {
+    if (!bodyConfig.bodyType) {
+      return null;
+    }
+
+    const selectedOption = bodyTypeOptions.find((option) => option.key === bodyConfig.bodyType);
+
+    if (!selectedOption) {
+      return null;
+    }
+
+    if (modelBaseUrl) {
+      return `${modelBaseUrl}/${selectedOption.modelFileName}`;
+    }
+
+    return bodyConfig.bodyType === "dump" ? "/model1.glb" : "/model2.glb";
+  }, [bodyConfig.bodyType]);
+
+  useEffect(() => {
+    if (!resolvedModelPath) {
+      setIsPreviewLoading(false);
+      return;
+    }
+
+    setIsPreviewLoading(true);
+    useGLTF.preload(resolvedModelPath);
+  }, [resolvedModelPath]);
 
   const handleOemChange = (field: keyof OemConfigState, value: string) => {
     setOemConfig((prev) => ({ ...prev, [field]: value }));
@@ -934,7 +1113,24 @@ export default function ConfigurePage() {
     if (field === "length") {
       setBodyConfig((prev) => ({
         ...prev,
-        dumpSelections: getDumpAutoSelectionsByLength(dumpBodyPricingConfig, value),
+        dumpSelections: mergeDumpSelectionsByLength(
+          dumpBodyPricingConfig,
+          prev.dumpSelections,
+          value,
+          manualOverrides.dump
+        ),
+      }));
+      setManualOverrides((prev) => ({
+        ...prev,
+        dump: getDumpManualOverridesFromSelections(
+          dumpBodyPricingConfig,
+          mergeDumpSelectionsByLength(
+            dumpBodyPricingConfig,
+            bodyConfig.dumpSelections,
+            value,
+            prev.dump
+          )
+        ),
       }));
       return;
     }
@@ -946,12 +1142,37 @@ export default function ConfigurePage() {
         [field]: value,
       },
     }));
+    setManualOverrides((prev) => ({
+      ...prev,
+      dump: {
+        ...prev.dump,
+        [field]: Boolean(value)
+          && value !== getDumpDefaultSelectionByLength(dumpBodyPricingConfig, field, bodyConfig.dumpSelections.length),
+      },
+    }));
   };
 
   const handleServiceLengthChange = (value: string) => {
     setBodyConfig((prev) => ({
       ...prev,
-      serviceSelections: getAutoSelectionsByBaseDimension(serviceBodyPricingConfig, value),
+      serviceSelections: mergeServiceSelectionsByLength(
+        serviceBodyPricingConfig,
+        prev.serviceSelections,
+        value,
+        manualOverrides.service
+      ),
+    }));
+    setManualOverrides((prev) => ({
+      ...prev,
+      service: getServiceManualOverridesFromSelections(
+        serviceBodyPricingConfig,
+        mergeServiceSelectionsByLength(
+          serviceBodyPricingConfig,
+          bodyConfig.serviceSelections,
+          value,
+          prev.service
+        )
+      ),
     }));
   };
 
@@ -961,6 +1182,14 @@ export default function ConfigurePage() {
       serviceSelections: {
         ...prev.serviceSelections,
         [field]: value,
+      },
+    }));
+    setManualOverrides((prev) => ({
+      ...prev,
+      service: {
+        ...prev.service,
+        [field]: Boolean(value)
+          && value !== getServiceDefaultSelectionByLength(serviceBodyPricingConfig, field, bodyConfig.serviceSelections.length),
       },
     }));
   };
@@ -1269,7 +1498,27 @@ export default function ConfigurePage() {
                 <div className="absolute bottom-4 left-4 z-10 rounded-lg bg-white px-3 py-2 text-xs text-gray-600 shadow-sm">
                   <p className="font-medium">Drag to rotate • Scroll to zoom</p>
                 </div>
-                <BridgeScene selectedBodyType={bodyConfig.bodyType} />
+                {!bodyConfig.bodyType ? (
+                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/82 backdrop-blur-sm">
+                    <div className="max-w-xs rounded-2xl border border-slate-200 bg-white px-6 py-5 text-center shadow-lg">
+                      <p className="text-sm font-semibold text-slate-900">Select body type to preview</p>
+                      <p className="mt-2 text-sm text-slate-500">Choose Dump Body or Service Body to load the 3D model.</p>
+                    </div>
+                  </div>
+                ) : null}
+                {bodyConfig.bodyType && isPreviewLoading ? (
+                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/72 backdrop-blur-sm">
+                    <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-center shadow-lg">
+                      <div className="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
+                      <p className="mt-3 text-sm font-semibold text-slate-900">Loading 3D preview</p>
+                    </div>
+                  </div>
+                ) : null}
+                <BridgeScene
+                  selectedBodyType={bodyConfig.bodyType}
+                  modelPath={resolvedModelPath}
+                  onModelReady={() => setIsPreviewLoading(false)}
+                />
               </div>
 
               {/* Configuration Summary */}
