@@ -1,10 +1,18 @@
 "use client";
 
-import { ReactNode, Suspense, useEffect, useId, useMemo, useState } from "react";
+import {
+  ReactNode,
+  Suspense,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+} from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
 import { Box3, Vector3 } from "three";
 import { APP_NAME } from "./constant";
+import type { TrailerConfig } from "@/lib/schema";
 
 type BodyTypeKey = "dump" | "service";
 
@@ -63,7 +71,8 @@ const bodyTypeOptions: BodyTypeOption[] = [
   { key: "service", label: "Service Body", modelFileName: "service_body.glb" },
 ];
 
-const modelBaseUrl = process.env.NEXT_PUBLIC_S3_DOMAIN_URL?.replace(/\/$/, "") ?? "";
+const modelBaseUrl =
+  process.env.NEXT_PUBLIC_S3_DOMAIN_URL?.replace(/\/$/, "") ?? "";
 
 const dropdownOptions = {
   make: ["Volvo", "Scania", "MAN", "Daimler", "Renault"],
@@ -367,34 +376,44 @@ const selectFieldClasses: {
 } = {
   card: "border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.98))] shadow-[0_12px_26px_rgba(15,23,42,0.06)]",
   label: "text-slate-800",
-  input: "border-slate-200 bg-white hover:border-slate-300 focus:border-blue-500 focus:ring-blue-500/10",
+  input:
+    "border-slate-200 bg-white hover:border-slate-300 focus:border-blue-500 focus:ring-blue-500/10",
   chevron: "border-slate-200 bg-slate-50 text-slate-500",
 };
 
-const selectIconToneClasses: Record<SelectIconTone, { rail: string; badge: string }> = {
+const selectIconToneClasses: Record<
+  SelectIconTone,
+  { rail: string; badge: string }
+> = {
   blue: {
     rail: "border-blue-100 bg-[linear-gradient(180deg,#eff6ff_0%,#dbeafe_100%)]",
-    badge: "border-blue-100 bg-white/80 text-blue-700 shadow-[0_8px_18px_rgba(59,130,246,0.14)]",
+    badge:
+      "border-blue-100 bg-white/80 text-blue-700 shadow-[0_8px_18px_rgba(59,130,246,0.14)]",
   },
   cyan: {
     rail: "border-cyan-100 bg-[linear-gradient(180deg,#ecfeff_0%,#cffafe_100%)]",
-    badge: "border-cyan-100 bg-white/80 text-cyan-700 shadow-[0_8px_18px_rgba(6,182,212,0.14)]",
+    badge:
+      "border-cyan-100 bg-white/80 text-cyan-700 shadow-[0_8px_18px_rgba(6,182,212,0.14)]",
   },
   emerald: {
     rail: "border-emerald-100 bg-[linear-gradient(180deg,#ecfdf5_0%,#d1fae5_100%)]",
-    badge: "border-emerald-100 bg-white/80 text-emerald-700 shadow-[0_8px_18px_rgba(16,185,129,0.14)]",
+    badge:
+      "border-emerald-100 bg-white/80 text-emerald-700 shadow-[0_8px_18px_rgba(16,185,129,0.14)]",
   },
   amber: {
     rail: "border-amber-100 bg-[linear-gradient(180deg,#fffbeb_0%,#fde68a_100%)]",
-    badge: "border-amber-100 bg-white/85 text-amber-700 shadow-[0_8px_18px_rgba(245,158,11,0.14)]",
+    badge:
+      "border-amber-100 bg-white/85 text-amber-700 shadow-[0_8px_18px_rgba(245,158,11,0.14)]",
   },
   violet: {
     rail: "border-violet-100 bg-[linear-gradient(180deg,#f5f3ff_0%,#ede9fe_100%)]",
-    badge: "border-violet-100 bg-white/80 text-violet-700 shadow-[0_8px_18px_rgba(139,92,246,0.14)]",
+    badge:
+      "border-violet-100 bg-white/80 text-violet-700 shadow-[0_8px_18px_rgba(139,92,246,0.14)]",
   },
   rose: {
     rail: "border-rose-100 bg-[linear-gradient(180deg,#fff1f2_0%,#ffe4e6_100%)]",
-    badge: "border-rose-100 bg-white/80 text-rose-700 shadow-[0_8px_18px_rgba(244,63,94,0.14)]",
+    badge:
+      "border-rose-100 bg-white/80 text-rose-700 shadow-[0_8px_18px_rgba(244,63,94,0.14)]",
   },
 };
 
@@ -404,7 +423,9 @@ const toSelectOptions = (options: readonly string[]): SelectOption[] =>
 const toPricingSelectOptions = (options: PricingOption[]): SelectOption[] =>
   options.map((option) => ({ value: option.value, label: option.label }));
 
-const toSingleOption = (value: string): SelectOption[] => [{ value, label: value }];
+const toSingleOption = (value: string): SelectOption[] => [
+  { value, label: value },
+];
 
 const formatCurrency = (value: number): string =>
   `$${value.toLocaleString("en-US", { minimumFractionDigits: 0 })}`;
@@ -413,8 +434,8 @@ const getDumpDimensionByKey = (
   config: DumpBodyPricingConfig,
   key: DumpDimensionKey
 ): DumpDimensionConfig =>
-  config.dimensions.find((dimension) => dimension.key === key)
-  ?? config.dimensions[0];
+  config.dimensions.find((dimension) => dimension.key === key) ??
+  config.dimensions[0];
 
 const getDumpOptionPrice = (
   config: DumpBodyPricingConfig,
@@ -460,11 +481,17 @@ const getDumpAutoSelectionsByLength = (
     cabGuard: "",
   };
 
-  (config.dimensions.filter((dimension) => dimension.key !== "length") as DumpDimensionConfig[])
-    .forEach((dimension) => {
-      const defaultValue = dimension.defaultByLength?.[lengthValue] ?? dimension.options[0]?.value ?? "";
-      nextSelections[dimension.key] = defaultValue;
-    });
+  (
+    config.dimensions.filter(
+      (dimension) => dimension.key !== "length"
+    ) as DumpDimensionConfig[]
+  ).forEach((dimension) => {
+    const defaultValue =
+      dimension.defaultByLength?.[lengthValue] ??
+      dimension.options[0]?.value ??
+      "";
+    nextSelections[dimension.key] = defaultValue;
+  });
 
   return nextSelections;
 };
@@ -485,7 +512,11 @@ const getDumpDefaultSelectionByLength = (
   lengthValue: string
 ): string => {
   const dimension = getDumpDimensionByKey(config, key);
-  return dimension.defaultByLength?.[lengthValue] ?? dimension.options[0]?.value ?? "";
+  return (
+    dimension.defaultByLength?.[lengthValue] ??
+    dimension.options[0]?.value ??
+    ""
+  );
 };
 
 const getDumpManualOverridesFromSelections = (
@@ -505,13 +536,46 @@ const getDumpManualOverridesFromSelections = (
   }
 
   return {
-    sideHeight: Boolean(selections.sideHeight) && selections.sideHeight !== getDumpDefaultSelectionByLength(config, "sideHeight", selections.length),
-    bodyStyle: Boolean(selections.bodyStyle) && selections.bodyStyle !== getDumpDefaultSelectionByLength(config, "bodyStyle", selections.length),
-    rearGate: Boolean(selections.rearGate) && selections.rearGate !== getDumpDefaultSelectionByLength(config, "rearGate", selections.length),
-    asphaltGate: Boolean(selections.asphaltGate) && selections.asphaltGate !== getDumpDefaultSelectionByLength(config, "asphaltGate", selections.length),
-    tailgateAngle: Boolean(selections.tailgateAngle) && selections.tailgateAngle !== getDumpDefaultSelectionByLength(config, "tailgateAngle", selections.length),
-    hoist: Boolean(selections.hoist) && selections.hoist !== getDumpDefaultSelectionByLength(config, "hoist", selections.length),
-    cabGuard: Boolean(selections.cabGuard) && selections.cabGuard !== getDumpDefaultSelectionByLength(config, "cabGuard", selections.length),
+    sideHeight:
+      Boolean(selections.sideHeight) &&
+      selections.sideHeight !==
+        getDumpDefaultSelectionByLength(
+          config,
+          "sideHeight",
+          selections.length
+        ),
+    bodyStyle:
+      Boolean(selections.bodyStyle) &&
+      selections.bodyStyle !==
+        getDumpDefaultSelectionByLength(config, "bodyStyle", selections.length),
+    rearGate:
+      Boolean(selections.rearGate) &&
+      selections.rearGate !==
+        getDumpDefaultSelectionByLength(config, "rearGate", selections.length),
+    asphaltGate:
+      Boolean(selections.asphaltGate) &&
+      selections.asphaltGate !==
+        getDumpDefaultSelectionByLength(
+          config,
+          "asphaltGate",
+          selections.length
+        ),
+    tailgateAngle:
+      Boolean(selections.tailgateAngle) &&
+      selections.tailgateAngle !==
+        getDumpDefaultSelectionByLength(
+          config,
+          "tailgateAngle",
+          selections.length
+        ),
+    hoist:
+      Boolean(selections.hoist) &&
+      selections.hoist !==
+        getDumpDefaultSelectionByLength(config, "hoist", selections.length),
+    cabGuard:
+      Boolean(selections.cabGuard) &&
+      selections.cabGuard !==
+        getDumpDefaultSelectionByLength(config, "cabGuard", selections.length),
   };
 };
 
@@ -522,7 +586,9 @@ const mergeDumpSelectionsByLength = (
   manualOverrides: Record<DumpEditableDimensionKey, boolean>
 ): Record<DumpDimensionKey, string> => {
   const autoSelections = getDumpAutoSelectionsByLength(config, lengthValue);
-  const nextSelections: Record<DumpDimensionKey, string> = { ...autoSelections };
+  const nextSelections: Record<DumpDimensionKey, string> = {
+    ...autoSelections,
+  };
 
   dumpEditableDimensionKeys.forEach((key) => {
     if (manualOverrides[key] && previousSelections[key]) {
@@ -537,8 +603,8 @@ const getDimensionByKey = (
   config: ServiceBodyPricingConfig,
   key: ServiceDimensionKey
 ): ServiceDimensionConfig =>
-  config.dimensions.find((dimension) => dimension.key === key)
-  ?? config.dimensions[0];
+  config.dimensions.find((dimension) => dimension.key === key) ??
+  config.dimensions[0];
 
 const getOptionPrice = (
   config: ServiceBodyPricingConfig,
@@ -562,16 +628,26 @@ const getAutoSelectionsByBaseDimension = (
   };
   nextSelections[config.baseDimensionKey] = baseValue;
 
-  (config.dimensions.filter((dimension) => dimension.key !== config.baseDimensionKey) as ServiceDimensionConfig[])
-    .forEach((dimension) => {
-      const defaultValue = dimension.defaultByLength?.[baseValue] ?? dimension.options[0]?.value ?? "";
-      nextSelections[dimension.key] = defaultValue;
-    });
+  (
+    config.dimensions.filter(
+      (dimension) => dimension.key !== config.baseDimensionKey
+    ) as ServiceDimensionConfig[]
+  ).forEach((dimension) => {
+    const defaultValue =
+      dimension.defaultByLength?.[baseValue] ??
+      dimension.options[0]?.value ??
+      "";
+    nextSelections[dimension.key] = defaultValue;
+  });
 
   return nextSelections;
 };
 
-const serviceEditableDimensionKeys: ServiceEditableDimensionKey[] = ["width", "height", "ca"];
+const serviceEditableDimensionKeys: ServiceEditableDimensionKey[] = [
+  "width",
+  "height",
+  "ca",
+];
 
 const getServiceDefaultSelectionByLength = (
   config: ServiceBodyPricingConfig,
@@ -579,7 +655,11 @@ const getServiceDefaultSelectionByLength = (
   lengthValue: string
 ): string => {
   const dimension = getDimensionByKey(config, key);
-  return dimension.defaultByLength?.[lengthValue] ?? dimension.options[0]?.value ?? "";
+  return (
+    dimension.defaultByLength?.[lengthValue] ??
+    dimension.options[0]?.value ??
+    ""
+  );
 };
 
 const getServiceManualOverridesFromSelections = (
@@ -595,9 +675,18 @@ const getServiceManualOverridesFromSelections = (
   }
 
   return {
-    width: Boolean(selections.width) && selections.width !== getServiceDefaultSelectionByLength(config, "width", selections.length),
-    height: Boolean(selections.height) && selections.height !== getServiceDefaultSelectionByLength(config, "height", selections.length),
-    ca: Boolean(selections.ca) && selections.ca !== getServiceDefaultSelectionByLength(config, "ca", selections.length),
+    width:
+      Boolean(selections.width) &&
+      selections.width !==
+        getServiceDefaultSelectionByLength(config, "width", selections.length),
+    height:
+      Boolean(selections.height) &&
+      selections.height !==
+        getServiceDefaultSelectionByLength(config, "height", selections.length),
+    ca:
+      Boolean(selections.ca) &&
+      selections.ca !==
+        getServiceDefaultSelectionByLength(config, "ca", selections.length),
   };
 };
 
@@ -608,7 +697,9 @@ const mergeServiceSelectionsByLength = (
   manualOverrides: Record<ServiceEditableDimensionKey, boolean>
 ): Record<ServiceDimensionKey, string> => {
   const autoSelections = getAutoSelectionsByBaseDimension(config, lengthValue);
-  const nextSelections: Record<ServiceDimensionKey, string> = { ...autoSelections };
+  const nextSelections: Record<ServiceDimensionKey, string> = {
+    ...autoSelections,
+  };
 
   serviceEditableDimensionKeys.forEach((key) => {
     if (manualOverrides[key] && previousSelections[key]) {
@@ -653,14 +744,23 @@ function SelectField({
   const iconToneClass = selectIconToneClasses[iconTone];
 
   return (
-    <div className={`grid grid-cols-[64px_1fr] gap-3 rounded-2xl border p-3.5 ${selectFieldClasses.card}`}>
-      <span className={`inline-flex h-full min-h-[92px] items-center justify-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] ${iconToneClass.rail}`}>
-        <span className={`relative inline-flex h-11 w-11 items-center justify-center rounded-xl border [&_svg]:h-[20px] [&_svg]:w-[20px] ${iconToneClass.badge}`}>
+    <div
+      className={`grid grid-cols-[64px_1fr] gap-3 rounded-2xl border p-3.5 ${selectFieldClasses.card}`}
+    >
+      <span
+        className={`inline-flex h-full min-h-[92px] items-center justify-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] ${iconToneClass.rail}`}
+      >
+        <span
+          className={`relative inline-flex h-11 w-11 items-center justify-center rounded-xl border [&_svg]:h-[20px] [&_svg]:w-[20px] ${iconToneClass.badge}`}
+        >
           {icon}
         </span>
       </span>
       <div className="flex flex-col justify-center">
-        <label htmlFor={selectId} className={`text-sm font-semibold tracking-[0.01em] ${selectFieldClasses.label}`}>
+        <label
+          htmlFor={selectId}
+          className={`text-sm font-semibold tracking-[0.01em] ${selectFieldClasses.label}`}
+        >
           {label}
         </label>
         <div className="relative mt-2">
@@ -678,19 +778,40 @@ function SelectField({
               </option>
             ))}
           </select>
-          <span className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border p-1 ${selectFieldClasses.chevron}`}>
-            <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
-              <path d="M5.75 7.75 10 12l4.25-4.25" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+          <span
+            className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border p-1 ${selectFieldClasses.chevron}`}
+          >
+            <svg
+              viewBox="0 0 20 20"
+              className="h-3.5 w-3.5"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M5.75 7.75 10 12l4.25-4.25"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </span>
         </div>
       </div>
-      {helperText ? <p className="col-span-2 mt-0.5 text-xs text-slate-500">{helperText}</p> : null}
+      {helperText ? (
+        <p className="col-span-2 mt-0.5 text-xs text-slate-500">{helperText}</p>
+      ) : null}
     </div>
   );
 }
 
-function BridgeModel({ modelPath, onReady }: { modelPath: string; onReady: () => void }) {
+function BridgeModel({
+  modelPath,
+  onReady,
+}: {
+  modelPath: string;
+  onReady: () => void;
+}) {
   const { scene } = useGLTF(modelPath);
   const model = useMemo(() => scene.clone(), [scene]);
 
@@ -730,7 +851,9 @@ function BridgeScene({
   modelPath: string | null;
   onModelReady: () => void;
 }) {
-  const visibleBodyType = bodyTypeOptions.find((option) => option.key === selectedBodyType);
+  const visibleBodyType = bodyTypeOptions.find(
+    (option) => option.key === selectedBodyType
+  );
 
   return (
     <Canvas
@@ -744,9 +867,17 @@ function BridgeScene({
       <directionalLight position={[10, 18, 10]} intensity={1.6} />
       <directionalLight position={[-8, 8, -6]} intensity={0.8} />
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.25, 0]} receiveShadow>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, -1.25, 0]}
+        receiveShadow
+      >
         <planeGeometry args={[60, 60]} />
-        <meshStandardMaterial color="#e8e8e8" roughness={0.9} metalness={0.05} />
+        <meshStandardMaterial
+          color="#e8e8e8"
+          roughness={0.9}
+          metalness={0.05}
+        />
       </mesh>
 
       <Suspense fallback={null}>
@@ -776,15 +907,39 @@ type DumpBodyConfiguratorProps = {
   onSelectionChange: (field: DumpDimensionKey, value: string) => void;
 };
 
-function DumpBodyConfigurator({ selections, onSelectionChange }: DumpBodyConfiguratorProps) {
-  const lengthDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "length");
-  const sideHeightDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "sideHeight");
-  const bodyStyleDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "bodyStyle");
-  const rearGateDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "rearGate");
-  const asphaltGateDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "asphaltGate");
-  const tailgateAngleDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "tailgateAngle");
+function DumpBodyConfigurator({
+  selections,
+  onSelectionChange,
+}: DumpBodyConfiguratorProps) {
+  const lengthDimension = getDumpDimensionByKey(
+    dumpBodyPricingConfig,
+    "length"
+  );
+  const sideHeightDimension = getDumpDimensionByKey(
+    dumpBodyPricingConfig,
+    "sideHeight"
+  );
+  const bodyStyleDimension = getDumpDimensionByKey(
+    dumpBodyPricingConfig,
+    "bodyStyle"
+  );
+  const rearGateDimension = getDumpDimensionByKey(
+    dumpBodyPricingConfig,
+    "rearGate"
+  );
+  const asphaltGateDimension = getDumpDimensionByKey(
+    dumpBodyPricingConfig,
+    "asphaltGate"
+  );
+  const tailgateAngleDimension = getDumpDimensionByKey(
+    dumpBodyPricingConfig,
+    "tailgateAngle"
+  );
   const hoistDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "hoist");
-  const cabGuardDimension = getDumpDimensionByKey(dumpBodyPricingConfig, "cabGuard");
+  const cabGuardDimension = getDumpDimensionByKey(
+    dumpBodyPricingConfig,
+    "cabGuard"
+  );
 
   return (
     <div className="space-y-5">
@@ -794,13 +949,37 @@ function DumpBodyConfigurator({ selections, onSelectionChange }: DumpBodyConfigu
         onChange={(value) => onSelectionChange("length", value)}
         placeholder={lengthDimension.placeholder}
         options={toPricingSelectOptions(lengthDimension.options)}
-        helperText={selections.length
-          ? `Base Price: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "length", selections.length))}`
-          : "Select length to start dump pricing."}
+        helperText={
+          selections.length
+            ? `Base Price: ${formatCurrency(
+                getDumpOptionPrice(
+                  dumpBodyPricingConfig,
+                  "length",
+                  selections.length
+                )
+              )}`
+            : "Select length to start dump pricing."
+        }
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-            <path d="M3.5 12h17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M7 9.5 4.5 12 7 14.5M17 9.5 19.5 12 17 14.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M3.5 12h17"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+            <path
+              d="M7 9.5 4.5 12 7 14.5M17 9.5 19.5 12 17 14.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         }
       />
@@ -812,12 +991,30 @@ function DumpBodyConfigurator({ selections, onSelectionChange }: DumpBodyConfigu
         placeholder={sideHeightDimension.placeholder}
         options={toPricingSelectOptions(sideHeightDimension.options)}
         disabled={!selections.length}
-        helperText={selections.length
-          ? `Price Diff: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "sideHeight", selections.sideHeight))}`
-          : "Select length first"}
+        helperText={
+          selections.length
+            ? `Price Diff: ${formatCurrency(
+                getDumpOptionPrice(
+                  dumpBodyPricingConfig,
+                  "sideHeight",
+                  selections.sideHeight
+                )
+              )}`
+            : "Select length first"
+        }
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-            <path d="M5 18V6M19 18V6M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M5 18V6M19 18V6M5 12h14"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
           </svg>
         }
       />
@@ -829,13 +1026,37 @@ function DumpBodyConfigurator({ selections, onSelectionChange }: DumpBodyConfigu
         placeholder={bodyStyleDimension.placeholder}
         options={toPricingSelectOptions(bodyStyleDimension.options)}
         disabled={!selections.length}
-        helperText={selections.length
-          ? `Price Diff: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "bodyStyle", selections.bodyStyle))}`
-          : "Select length first"}
+        helperText={
+          selections.length
+            ? `Price Diff: ${formatCurrency(
+                getDumpOptionPrice(
+                  dumpBodyPricingConfig,
+                  "bodyStyle",
+                  selections.bodyStyle
+                )
+              )}`
+            : "Select length first"
+        }
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-            <path d="M4 16V9.5L12 5l8 4.5V16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M4 12h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 16V9.5L12 5l8 4.5V16"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M4 12h16"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
           </svg>
         }
       />
@@ -847,13 +1068,31 @@ function DumpBodyConfigurator({ selections, onSelectionChange }: DumpBodyConfigu
         placeholder={rearGateDimension.placeholder}
         options={toPricingSelectOptions(rearGateDimension.options)}
         disabled={!selections.length}
-        helperText={selections.length
-          ? `Price Diff: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "rearGate", selections.rearGate))}`
-          : "Select length first"}
+        helperText={
+          selections.length
+            ? `Price Diff: ${formatCurrency(
+                getDumpOptionPrice(
+                  dumpBodyPricingConfig,
+                  "rearGate",
+                  selections.rearGate
+                )
+              )}`
+            : "Select length first"
+        }
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            aria-hidden="true"
+          >
             <path d="M6 7h12v10H6z" stroke="currentColor" strokeWidth="1.8" />
-            <path d="M6 12h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path
+              d="M6 12h12"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
           </svg>
         }
       />
@@ -865,13 +1104,31 @@ function DumpBodyConfigurator({ selections, onSelectionChange }: DumpBodyConfigu
         placeholder={asphaltGateDimension.placeholder}
         options={toPricingSelectOptions(asphaltGateDimension.options)}
         disabled={!selections.length}
-        helperText={selections.length
-          ? `Price Diff: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "asphaltGate", selections.asphaltGate))}`
-          : "Select length first"}
+        helperText={
+          selections.length
+            ? `Price Diff: ${formatCurrency(
+                getDumpOptionPrice(
+                  dumpBodyPricingConfig,
+                  "asphaltGate",
+                  selections.asphaltGate
+                )
+              )}`
+            : "Select length first"
+        }
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            aria-hidden="true"
+          >
             <path d="M6 7h12v10H6z" stroke="currentColor" strokeWidth="1.8" />
-            <path d="M6 12h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path
+              d="M6 12h12"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
           </svg>
         }
       />
@@ -883,13 +1140,36 @@ function DumpBodyConfigurator({ selections, onSelectionChange }: DumpBodyConfigu
         placeholder={tailgateAngleDimension.placeholder}
         options={toPricingSelectOptions(tailgateAngleDimension.options)}
         disabled={!selections.length}
-        helperText={selections.length
-          ? `Price Diff: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "tailgateAngle", selections.tailgateAngle))}`
-          : "Select length first"}
+        helperText={
+          selections.length
+            ? `Price Diff: ${formatCurrency(
+                getDumpOptionPrice(
+                  dumpBodyPricingConfig,
+                  "tailgateAngle",
+                  selections.tailgateAngle
+                )
+              )}`
+            : "Select length first"
+        }
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-            <path d="M5 16h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M15 16 19 9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M5 16h10"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+            <path
+              d="M15 16 19 9"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
           </svg>
         }
       />
@@ -901,14 +1181,43 @@ function DumpBodyConfigurator({ selections, onSelectionChange }: DumpBodyConfigu
         placeholder={hoistDimension.placeholder}
         options={toPricingSelectOptions(hoistDimension.options)}
         disabled={!selections.length}
-        helperText={selections.length
-          ? `Price Diff: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "hoist", selections.hoist))}`
-          : "Select length first"}
+        helperText={
+          selections.length
+            ? `Price Diff: ${formatCurrency(
+                getDumpOptionPrice(
+                  dumpBodyPricingConfig,
+                  "hoist",
+                  selections.hoist
+                )
+              )}`
+            : "Select length first"
+        }
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-            <path d="M6 16V9h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M15 6h3v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M9 18h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M6 16V9h12"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+            <path
+              d="M15 6h3v3"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M9 18h6"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
           </svg>
         }
       />
@@ -920,13 +1229,37 @@ function DumpBodyConfigurator({ selections, onSelectionChange }: DumpBodyConfigu
         placeholder={cabGuardDimension.placeholder}
         options={toPricingSelectOptions(cabGuardDimension.options)}
         disabled={!selections.length}
-        helperText={selections.length
-          ? `Price Diff: ${formatCurrency(getDumpOptionPrice(dumpBodyPricingConfig, "cabGuard", selections.cabGuard))}`
-          : "Select length first"}
+        helperText={
+          selections.length
+            ? `Price Diff: ${formatCurrency(
+                getDumpOptionPrice(
+                  dumpBodyPricingConfig,
+                  "cabGuard",
+                  selections.cabGuard
+                )
+              )}`
+            : "Select length first"
+        }
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-            <path d="M6 18V8l6-3 6 3v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M9 12h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M6 18V8l6-3 6 3v10"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M9 12h6"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
           </svg>
         }
       />
@@ -937,18 +1270,31 @@ function DumpBodyConfigurator({ selections, onSelectionChange }: DumpBodyConfigu
 type ServiceBodyConfiguratorProps = {
   selections: Record<ServiceDimensionKey, string>;
   onLengthChange: (value: string) => void;
-  onDimensionChange: (field: Exclude<ServiceDimensionKey, "length">, value: string) => void;
+  onDimensionChange: (
+    field: Exclude<ServiceDimensionKey, "length">,
+    value: string
+  ) => void;
 };
 
-function ServiceBodyConfigurator({ selections, onLengthChange, onDimensionChange }: ServiceBodyConfiguratorProps) {
+function ServiceBodyConfigurator({
+  selections,
+  onLengthChange,
+  onDimensionChange,
+}: ServiceBodyConfiguratorProps) {
   const lengthDimension = getDimensionByKey(serviceBodyPricingConfig, "length");
   const widthDimension = getDimensionByKey(serviceBodyPricingConfig, "width");
   const heightDimension = getDimensionByKey(serviceBodyPricingConfig, "height");
   const caDimension = getDimensionByKey(serviceBodyPricingConfig, "ca");
 
-  const widthPriceDiff = selections.width ? getOptionPrice(serviceBodyPricingConfig, "width", selections.width) : 0;
-  const heightPriceDiff = selections.height ? getOptionPrice(serviceBodyPricingConfig, "height", selections.height) : 0;
-  const caPriceDiff = selections.ca ? getOptionPrice(serviceBodyPricingConfig, "ca", selections.ca) : 0;
+  const widthPriceDiff = selections.width
+    ? getOptionPrice(serviceBodyPricingConfig, "width", selections.width)
+    : 0;
+  const heightPriceDiff = selections.height
+    ? getOptionPrice(serviceBodyPricingConfig, "height", selections.height)
+    : 0;
+  const caPriceDiff = selections.ca
+    ? getOptionPrice(serviceBodyPricingConfig, "ca", selections.ca)
+    : 0;
 
   return (
     <div className="space-y-5">
@@ -958,13 +1304,37 @@ function ServiceBodyConfigurator({ selections, onLengthChange, onDimensionChange
         onChange={onLengthChange}
         placeholder={lengthDimension.placeholder}
         options={toPricingSelectOptions(lengthDimension.options)}
-        helperText={selections.length
-          ? `Base Price: ${formatCurrency(getOptionPrice(serviceBodyPricingConfig, "length", selections.length))}`
-          : "Choose length to auto-fill Width, Height, and CA."}
+        helperText={
+          selections.length
+            ? `Base Price: ${formatCurrency(
+                getOptionPrice(
+                  serviceBodyPricingConfig,
+                  "length",
+                  selections.length
+                )
+              )}`
+            : "Choose length to auto-fill Width, Height, and CA."
+        }
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-            <path d="M3.5 12h17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M7 9.5 4.5 12 7 14.5M17 9.5 19.5 12 17 14.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M3.5 12h17"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+            <path
+              d="M7 9.5 4.5 12 7 14.5M17 9.5 19.5 12 17 14.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         }
       />
@@ -976,11 +1346,31 @@ function ServiceBodyConfigurator({ selections, onLengthChange, onDimensionChange
         placeholder={widthDimension.placeholder}
         options={toPricingSelectOptions(widthDimension.options)}
         disabled={!selections.length}
-        helperText={selections.length ? `Price Diff: ${formatCurrency(widthPriceDiff)}` : "Select length first"}
+        helperText={
+          selections.length
+            ? `Price Diff: ${formatCurrency(widthPriceDiff)}`
+            : "Select length first"
+        }
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-            <path d="M3.5 12h17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M7 9.5 4.5 12 7 14.5M17 9.5 19.5 12 17 14.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M3.5 12h17"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+            <path
+              d="M7 9.5 4.5 12 7 14.5M17 9.5 19.5 12 17 14.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         }
       />
@@ -992,11 +1382,31 @@ function ServiceBodyConfigurator({ selections, onLengthChange, onDimensionChange
         placeholder={heightDimension.placeholder}
         options={toPricingSelectOptions(heightDimension.options)}
         disabled={!selections.length}
-        helperText={selections.length ? `Price Diff: ${formatCurrency(heightPriceDiff)}` : "Select length first"}
+        helperText={
+          selections.length
+            ? `Price Diff: ${formatCurrency(heightPriceDiff)}`
+            : "Select length first"
+        }
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-            <path d="M12 4v16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M9.5 7 12 4.5 14.5 7M9.5 17 12 19.5 14.5 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M12 4v16"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+            <path
+              d="M9.5 7 12 4.5 14.5 7M9.5 17 12 19.5 14.5 17"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         }
       />
@@ -1008,12 +1418,37 @@ function ServiceBodyConfigurator({ selections, onLengthChange, onDimensionChange
         placeholder={caDimension.placeholder}
         options={toPricingSelectOptions(caDimension.options)}
         disabled={!selections.length}
-        helperText={selections.length ? `Price Diff: ${formatCurrency(caPriceDiff)}` : "Select length first"}
+        helperText={
+          selections.length
+            ? `Price Diff: ${formatCurrency(caPriceDiff)}`
+            : "Select length first"
+        }
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-            <path d="M4 12h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M4 9v6M20 9v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M10 9l-2 3 2 3M14 9l2 3-2 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 12h16"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+            <path
+              d="M4 9v6M20 9v6"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+            <path
+              d="M10 9l-2 3 2 3M14 9l2 3-2 3"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         }
       />
@@ -1025,6 +1460,8 @@ export default function ConfigurePage() {
   const [activeTab, setActiveTab] = useState("configure");
   const [activeBodyTab, setActiveBodyTab] = useState<BodyTabKey>("oemChassis");
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [savedConfigs, setSavedConfigs] = useState<TrailerConfig[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
   const [oemConfig, setOemConfig] = useState<OemConfigState>({
     make: "",
     modelYear: "",
@@ -1056,29 +1493,32 @@ export default function ConfigurePage() {
       ca: "",
     },
   });
-  const [manualOverrides, setManualOverrides] = useState<BodyManualOverrideState>({
-    dump: {
-      sideHeight: false,
-      bodyStyle: false,
-      rearGate: false,
-      asphaltGate: false,
-      tailgateAngle: false,
-      hoist: false,
-      cabGuard: false,
-    },
-    service: {
-      width: false,
-      height: false,
-      ca: false,
-    },
-  });
+  const [manualOverrides, setManualOverrides] =
+    useState<BodyManualOverrideState>({
+      dump: {
+        sideHeight: false,
+        bodyStyle: false,
+        rearGate: false,
+        asphaltGate: false,
+        tailgateAngle: false,
+        hoist: false,
+        cabGuard: false,
+      },
+      service: {
+        width: false,
+        height: false,
+        ca: false,
+      },
+    });
 
   const resolvedModelPath = useMemo(() => {
     if (!bodyConfig.bodyType) {
       return null;
     }
 
-    const selectedOption = bodyTypeOptions.find((option) => option.key === bodyConfig.bodyType);
+    const selectedOption = bodyTypeOptions.find(
+      (option) => option.key === bodyConfig.bodyType
+    );
 
     if (!selectedOption) {
       return null;
@@ -1101,6 +1541,41 @@ export default function ConfigurePage() {
     useGLTF.preload(resolvedModelPath);
   }, [resolvedModelPath]);
 
+  useEffect(() => {
+    fetch("/api/configurations")
+      .then((res) => res.json())
+      .then(setSavedConfigs)
+      .catch(console.error);
+  }, []);
+
+  const handleSaveConfiguration = async () => {
+    if (!bodyConfig.bodyType) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/configurations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bodyType: bodyConfig.bodyType,
+          config: {
+            oem: oemConfig,
+            body:
+              bodyConfig.bodyType === "dump"
+                ? bodyConfig.dumpSelections
+                : bodyConfig.serviceSelections,
+          },
+          totalPrice,
+        }),
+      });
+      const saved = await res.json();
+      setSavedConfigs((prev) => [saved, ...prev]);
+    } catch (err) {
+      console.error("Failed to save configuration", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleOemChange = (field: keyof OemConfigState, value: string) => {
     setOemConfig((prev) => ({ ...prev, [field]: value }));
   };
@@ -1109,7 +1584,10 @@ export default function ConfigurePage() {
     setBodyConfig((prev) => ({ ...prev, bodyType: value as BodyTypeKey | "" }));
   };
 
-  const handleDumpSelectionChange = (field: DumpDimensionKey, value: string) => {
+  const handleDumpSelectionChange = (
+    field: DumpDimensionKey,
+    value: string
+  ) => {
     if (field === "length") {
       setBodyConfig((prev) => ({
         ...prev,
@@ -1146,8 +1624,14 @@ export default function ConfigurePage() {
       ...prev,
       dump: {
         ...prev.dump,
-        [field]: Boolean(value)
-          && value !== getDumpDefaultSelectionByLength(dumpBodyPricingConfig, field, bodyConfig.dumpSelections.length),
+        [field]:
+          Boolean(value) &&
+          value !==
+            getDumpDefaultSelectionByLength(
+              dumpBodyPricingConfig,
+              field,
+              bodyConfig.dumpSelections.length
+            ),
       },
     }));
   };
@@ -1176,7 +1660,10 @@ export default function ConfigurePage() {
     }));
   };
 
-  const handleServiceDimensionChange = (field: Exclude<ServiceDimensionKey, "length">, value: string) => {
+  const handleServiceDimensionChange = (
+    field: Exclude<ServiceDimensionKey, "length">,
+    value: string
+  ) => {
     setBodyConfig((prev) => ({
       ...prev,
       serviceSelections: {
@@ -1188,23 +1675,39 @@ export default function ConfigurePage() {
       ...prev,
       service: {
         ...prev.service,
-        [field]: Boolean(value)
-          && value !== getServiceDefaultSelectionByLength(serviceBodyPricingConfig, field, bodyConfig.serviceSelections.length),
+        [field]:
+          Boolean(value) &&
+          value !==
+            getServiceDefaultSelectionByLength(
+              serviceBodyPricingConfig,
+              field,
+              bodyConfig.serviceSelections.length
+            ),
       },
     }));
   };
 
   const totalPrice = useMemo(() => {
     if (bodyConfig.bodyType === "dump") {
-      return getDumpTotalPrice(dumpBodyPricingConfig, bodyConfig.dumpSelections);
+      return getDumpTotalPrice(
+        dumpBodyPricingConfig,
+        bodyConfig.dumpSelections
+      );
     }
 
     if (bodyConfig.bodyType === "service") {
-      return getTotalPriceFromSelections(serviceBodyPricingConfig, bodyConfig.serviceSelections);
+      return getTotalPriceFromSelections(
+        serviceBodyPricingConfig,
+        bodyConfig.serviceSelections
+      );
     }
 
     return 0;
-  }, [bodyConfig.bodyType, bodyConfig.dumpSelections, bodyConfig.serviceSelections]);
+  }, [
+    bodyConfig.bodyType,
+    bodyConfig.dumpSelections,
+    bodyConfig.serviceSelections,
+  ]);
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -1215,43 +1718,66 @@ export default function ConfigurePage() {
           {/* Logo & Branding */}
           <div className="mb-8 flex items-center gap-3">
             <div className="rounded-2xl border border-white/20 bg-white/12 p-2.5 shadow-lg backdrop-blur-xl">
-              <svg className="h-6 w-6 text-orange-200" fill="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="h-6 w-6 text-orange-200"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg font-bold leading-tight tracking-tight">{APP_NAME}</h1>
+              <h1 className="text-lg font-bold leading-tight tracking-tight">
+                {APP_NAME}
+              </h1>
               <p className="text-xs text-blue-100/80">Configurator</p>
             </div>
           </div>
 
           {/* Price Card */}
           <div className="mb-8 rounded-[20px] border border-white/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.08))] px-4 py-4 shadow-xl backdrop-blur-xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-100/80">Estimated Price</p>
-            <p className="mt-2 text-3xl font-bold text-white">${totalPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
-            <p className="mt-2 text-xs text-blue-100/75">Starts after Body Type selection</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-100/80">
+              Estimated Price
+            </p>
+            <p className="mt-2 text-3xl font-bold text-white">
+              $
+              {totalPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            </p>
+            <p className="mt-2 text-xs text-blue-100/75">
+              Starts after Body Type selection
+            </p>
           </div>
 
           {/* Navigation Tabs */}
           <nav className="flex-1 space-y-2.5">
-            <p className="mb-4 px-1 text-xs font-semibold uppercase tracking-[0.3em] text-blue-100/70">Navigation</p>
-            {[
-              { id: "configure", label: "Configure", icon: "⚙️" },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-300 ${
-                  activeTab === tab.id
-                    ? "border border-white/20 bg-white text-slate-900 shadow-[0_16px_40px_rgba(15,23,42,0.22)]"
-                    : "text-blue-50/90 hover:bg-white/12 hover:text-white"
-                }`}
-              >
-                <span className={`text-lg ${activeTab === tab.id ? "" : "opacity-95"}`}>{tab.icon}</span>
-                <span>{tab.label}</span>
-                {activeTab === tab.id && <span className="ml-auto h-2.5 w-2.5 rounded-full bg-orange-500" />}
-              </button>
-            ))}
+            <p className="mb-4 px-1 text-xs font-semibold uppercase tracking-[0.3em] text-blue-100/70">
+              Navigation
+            </p>
+            {[{ id: "configure", label: "Configure", icon: "⚙️" }].map(
+              (tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-300 ${
+                    activeTab === tab.id
+                      ? "border border-white/20 bg-white text-slate-900 shadow-[0_16px_40px_rgba(15,23,42,0.22)]"
+                      : "text-blue-50/90 hover:bg-white/12 hover:text-white"
+                  }`}
+                >
+                  <span
+                    className={`text-lg ${
+                      activeTab === tab.id ? "" : "opacity-95"
+                    }`}
+                  >
+                    {tab.icon}
+                  </span>
+                  <span>{tab.label}</span>
+                  {activeTab === tab.id && (
+                    <span className="ml-auto h-2.5 w-2.5 rounded-full bg-orange-500" />
+                  )}
+                </button>
+              )
+            )}
           </nav>
         </div>
       </aside>
@@ -1259,366 +1785,633 @@ export default function ConfigurePage() {
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
         <div className="mx-auto max-w-6xl px-8 py-8">
-        {activeTab === "configure" && (
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-            {/* Left Section - Configuration */}
-            <div className="relative z-20 space-y-6">
-              <div>
-                <h2 className="mb-6 text-xl font-semibold text-gray-900">Vehicle Configuration</h2>
+          {activeTab === "configure" && (
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+              {/* Left Section - Configuration */}
+              <div className="relative z-20 space-y-6">
+                <div>
+                  <h2 className="mb-6 text-xl font-semibold text-gray-900">
+                    Vehicle Configuration
+                  </h2>
 
-                <div className="relative z-30 isolate mb-6 grid grid-cols-2 rounded-xl border border-blue-200 bg-blue-50/80 p-1 shadow-sm pointer-events-auto">
-                  <button
-                    type="button"
-                    onClick={() => setActiveBodyTab("oemChassis")}
-                    onMouseDown={() => setActiveBodyTab("oemChassis")}
-                    className={`rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
-                      activeBodyTab === "oemChassis"
-                        ? "bg-white text-blue-700 shadow-sm"
-                        : "text-blue-900/75 hover:text-blue-900"
-                    }`}
-                  >
-                    OEM Chassis
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveBodyTab("bodyUi")}
-                    onMouseDown={() => setActiveBodyTab("bodyUi")}
-                    className={`rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
-                      activeBodyTab === "bodyUi"
-                        ? "bg-white text-blue-700 shadow-sm"
-                        : "text-blue-900/75 hover:text-blue-900"
-                    }`}
-                  >
-                    Body UI
-                  </button>
-                </div>
-
-                <div className="space-y-5">
-                  {activeBodyTab === "oemChassis" && (
-                    <>
-                      <SelectField
-                        label="Make"
-                        value={oemConfig.make}
-                        onChange={(value) => handleOemChange("make", value)}
-                        placeholder="Select Make"
-                        options={toSelectOptions(dropdownOptions.make)}
-                        icon={
-                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                            <path d="M4 14h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                            <path d="M6 14V10l2-3h8l2 3v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                            <circle cx="8" cy="16" r="1.5" fill="currentColor" />
-                            <circle cx="16" cy="16" r="1.5" fill="currentColor" />
-                          </svg>
-                        }
-                      />
-
-                      <SelectField
-                        label="Model Year"
-                        value={oemConfig.modelYear}
-                        onChange={(value) => handleOemChange("modelYear", value)}
-                        placeholder="Select Year"
-                        options={toSelectOptions(dropdownOptions.modelYear)}
-                        icon={
-                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                            <rect x="4" y="6" width="16" height="14" rx="2" stroke="currentColor" strokeWidth="1.8" />
-                            <path d="M8 4v4M16 4v4M4 10h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                          </svg>
-                        }
-                      />
-
-                      <SelectField
-                        label="Cab Style"
-                        value={oemConfig.cabStyle}
-                        onChange={(value) => handleOemChange("cabStyle", value)}
-                        placeholder="Select Cab Style"
-                        options={toSelectOptions(dropdownOptions.cabStyle)}
-                        icon={
-                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                            <path d="M6 17V9h9l3 3v5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M15 9v3h3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        }
-                      />
-
-                      <SelectField
-                        label="Model Name"
-                        value={oemConfig.modelName}
-                        onChange={(value) => handleOemChange("modelName", value)}
-                        placeholder="Select Model"
-                        options={toSelectOptions(dropdownOptions.modelName)}
-                        icon={
-                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                            <path d="M5 7h14v10H5z" stroke="currentColor" strokeWidth="1.8" />
-                            <path d="M9 11h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                          </svg>
-                        }
-                      />
-
-                      <SelectField
-                        label="Cab Type"
-                        value={oemConfig.cabType}
-                        onChange={(value) => handleOemChange("cabType", value)}
-                        placeholder="Select Cab Type"
-                        options={toSelectOptions(dropdownOptions.cabType)}
-                        icon={
-                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                            <path d="M6 18v-7h12v7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M9 11V8h6v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        }
-                      />
-
-                      <SelectField
-                        label="CA"
-                        value={oemConfig.ca}
-                        onChange={(value) => handleOemChange("ca", value)}
-                        placeholder="Select CA"
-                        options={toSelectOptions(dropdownOptions.ca)}
-                        icon={
-                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                            <path d="M4 12h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                            <path d="M4 9v6M20 9v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                            <path d="M10 9l-2 3 2 3M14 9l2 3-2 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        }
-                      />
-
-                      <SelectField
-                        label="WB"
-                        value={oemConfig.wb}
-                        onChange={(value) => handleOemChange("wb", value)}
-                        placeholder="Select WB"
-                        options={toSelectOptions(dropdownOptions.wb)}
-                        icon={
-                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                            <path d="M3.5 12h17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                            <path d="M7 9.5 4.5 12 7 14.5M17 9.5 19.5 12 17 14.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        }
-                      />
-
-                      <SelectField
-                        label="Fuel Type"
-                        value={oemConfig.fuelType}
-                        onChange={(value) => handleOemChange("fuelType", value)}
-                        placeholder="Select Fuel Type"
-                        options={toSelectOptions(dropdownOptions.fuelType)}
-                        icon={
-                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                            <path d="M12 4c2.7 3 4 5.1 4 7.1A4 4 0 1 1 8 11c0-2 1.3-4.1 4-7Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        }
-                      />
-
-                      <SelectField
-                        label="GVWR"
-                        value={oemConfig.gvwr}
-                        onChange={(value) => handleOemChange("gvwr", value)}
-                        placeholder="Select GVWR"
-                        options={toSelectOptions(dropdownOptions.gvwr)}
-                        icon={
-                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                            <rect x="4" y="6" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.8" />
-                            <path d="M8 10h8M8 14h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                          </svg>
-                        }
-                      />
-
-                      <SelectField
-                        label="Rear Wheel Drive Type"
-                        value={oemConfig.rearWheelDriveType}
-                        onChange={(value) => handleOemChange("rearWheelDriveType", value)}
-                        placeholder="Select Drive Type"
-                        options={toSelectOptions(dropdownOptions.rearWheelDriveType)}
-                        icon={
-                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                            <circle cx="7.5" cy="16" r="2.3" stroke="currentColor" strokeWidth="1.8" />
-                            <circle cx="16.5" cy="16" r="2.3" stroke="currentColor" strokeWidth="1.8" />
-                            <path d="M6 9h9l3 3v2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        }
-                      />
-                    </>
-                  )}
-
-                  {activeBodyTab === "bodyUi" && (
-                    <>
-                      <SelectField
-                        label="Body Type"
-                        value={bodyConfig.bodyType}
-                        onChange={handleBodyTypeChange}
-                        placeholder="Select Body Type"
-                        options={bodyTypeOptions.map((opt) => ({ value: opt.key, label: opt.label }))}
-                        icon={
-                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                            <path d="M4 16V9.5L12 5l8 4.5V16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M4 12h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                          </svg>
-                        }
-                        helperText="Choose a body type to render its dedicated configuration UI."
-                      />
-
-                      {bodyConfig.bodyType === "dump" && (
-                        <DumpBodyConfigurator
-                          selections={bodyConfig.dumpSelections}
-                          onSelectionChange={handleDumpSelectionChange}
-                        />
-                      )}
-
-                      {bodyConfig.bodyType === "service" && (
-                        <ServiceBodyConfigurator
-                          selections={bodyConfig.serviceSelections}
-                          onLengthChange={handleServiceLengthChange}
-                          onDimensionChange={handleServiceDimensionChange}
-                        />
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-6">
-                <button className="flex-1 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition-colors hover:bg-blue-700">
-                  Save Configuration
-                </button>
-                <button className="flex-1 rounded-lg border border-gray-300 bg-white px-6 py-3 font-medium text-gray-700 transition-colors hover:bg-gray-50">
-                  Reset
-                </button>
-              </div>
-            </div>
-
-            {/* Right Section - 3D Preview */}
-            <div className="relative z-0">
-              <h2 className="mb-6 text-xl font-semibold text-gray-900">Preview</h2>
-              <div className="relative h-[600px] w-full overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-md">
-                <div className="absolute left-4 top-4 z-10 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm">
-                  3D Model View
-                </div>
-                <div className="absolute bottom-4 left-4 z-10 rounded-lg bg-white px-3 py-2 text-xs text-gray-600 shadow-sm">
-                  <p className="font-medium">Drag to rotate • Scroll to zoom</p>
-                </div>
-                {!bodyConfig.bodyType ? (
-                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/82 backdrop-blur-sm">
-                    <div className="max-w-xs rounded-2xl border border-slate-200 bg-white px-6 py-5 text-center shadow-lg">
-                      <p className="text-sm font-semibold text-slate-900">Select body type to preview</p>
-                      <p className="mt-2 text-sm text-slate-500">Choose Dump Body or Service Body to load the 3D model.</p>
-                    </div>
+                  <div className="relative z-30 isolate mb-6 grid grid-cols-2 rounded-xl border border-blue-200 bg-blue-50/80 p-1 shadow-sm pointer-events-auto">
+                    <button
+                      type="button"
+                      onClick={() => setActiveBodyTab("oemChassis")}
+                      onMouseDown={() => setActiveBodyTab("oemChassis")}
+                      className={`rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                        activeBodyTab === "oemChassis"
+                          ? "bg-white text-blue-700 shadow-sm"
+                          : "text-blue-900/75 hover:text-blue-900"
+                      }`}
+                    >
+                      OEM Chassis
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveBodyTab("bodyUi")}
+                      onMouseDown={() => setActiveBodyTab("bodyUi")}
+                      className={`rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                        activeBodyTab === "bodyUi"
+                          ? "bg-white text-blue-700 shadow-sm"
+                          : "text-blue-900/75 hover:text-blue-900"
+                      }`}
+                    >
+                      Body UI
+                    </button>
                   </div>
-                ) : null}
-                {bodyConfig.bodyType && isPreviewLoading ? (
-                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/72 backdrop-blur-sm">
-                    <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-center shadow-lg">
-                      <div className="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
-                      <p className="mt-3 text-sm font-semibold text-slate-900">Loading 3D preview</p>
-                    </div>
+
+                  <div className="space-y-5">
+                    {activeBodyTab === "oemChassis" && (
+                      <>
+                        <SelectField
+                          label="Make"
+                          value={oemConfig.make}
+                          onChange={(value) => handleOemChange("make", value)}
+                          placeholder="Select Make"
+                          options={toSelectOptions(dropdownOptions.make)}
+                          icon={
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M4 14h16"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                              />
+                              <path
+                                d="M6 14V10l2-3h8l2 3v4"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <circle
+                                cx="8"
+                                cy="16"
+                                r="1.5"
+                                fill="currentColor"
+                              />
+                              <circle
+                                cx="16"
+                                cy="16"
+                                r="1.5"
+                                fill="currentColor"
+                              />
+                            </svg>
+                          }
+                        />
+
+                        <SelectField
+                          label="Model Year"
+                          value={oemConfig.modelYear}
+                          onChange={(value) =>
+                            handleOemChange("modelYear", value)
+                          }
+                          placeholder="Select Year"
+                          options={toSelectOptions(dropdownOptions.modelYear)}
+                          icon={
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <rect
+                                x="4"
+                                y="6"
+                                width="16"
+                                height="14"
+                                rx="2"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                              />
+                              <path
+                                d="M8 4v4M16 4v4M4 10h16"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          }
+                        />
+
+                        <SelectField
+                          label="Cab Style"
+                          value={oemConfig.cabStyle}
+                          onChange={(value) =>
+                            handleOemChange("cabStyle", value)
+                          }
+                          placeholder="Select Cab Style"
+                          options={toSelectOptions(dropdownOptions.cabStyle)}
+                          icon={
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M6 17V9h9l3 3v5"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M15 9v3h3"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          }
+                        />
+
+                        <SelectField
+                          label="Model Name"
+                          value={oemConfig.modelName}
+                          onChange={(value) =>
+                            handleOemChange("modelName", value)
+                          }
+                          placeholder="Select Model"
+                          options={toSelectOptions(dropdownOptions.modelName)}
+                          icon={
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M5 7h14v10H5z"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                              />
+                              <path
+                                d="M9 11h6"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          }
+                        />
+
+                        <SelectField
+                          label="Cab Type"
+                          value={oemConfig.cabType}
+                          onChange={(value) =>
+                            handleOemChange("cabType", value)
+                          }
+                          placeholder="Select Cab Type"
+                          options={toSelectOptions(dropdownOptions.cabType)}
+                          icon={
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M6 18v-7h12v7"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M9 11V8h6v3"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          }
+                        />
+
+                        <SelectField
+                          label="CA"
+                          value={oemConfig.ca}
+                          onChange={(value) => handleOemChange("ca", value)}
+                          placeholder="Select CA"
+                          options={toSelectOptions(dropdownOptions.ca)}
+                          icon={
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M4 12h16"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                              />
+                              <path
+                                d="M4 9v6M20 9v6"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                              />
+                              <path
+                                d="M10 9l-2 3 2 3M14 9l2 3-2 3"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          }
+                        />
+
+                        <SelectField
+                          label="WB"
+                          value={oemConfig.wb}
+                          onChange={(value) => handleOemChange("wb", value)}
+                          placeholder="Select WB"
+                          options={toSelectOptions(dropdownOptions.wb)}
+                          icon={
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M3.5 12h17"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                              />
+                              <path
+                                d="M7 9.5 4.5 12 7 14.5M17 9.5 19.5 12 17 14.5"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          }
+                        />
+
+                        <SelectField
+                          label="Fuel Type"
+                          value={oemConfig.fuelType}
+                          onChange={(value) =>
+                            handleOemChange("fuelType", value)
+                          }
+                          placeholder="Select Fuel Type"
+                          options={toSelectOptions(dropdownOptions.fuelType)}
+                          icon={
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M12 4c2.7 3 4 5.1 4 7.1A4 4 0 1 1 8 11c0-2 1.3-4.1 4-7Z"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          }
+                        />
+
+                        <SelectField
+                          label="GVWR"
+                          value={oemConfig.gvwr}
+                          onChange={(value) => handleOemChange("gvwr", value)}
+                          placeholder="Select GVWR"
+                          options={toSelectOptions(dropdownOptions.gvwr)}
+                          icon={
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <rect
+                                x="4"
+                                y="6"
+                                width="16"
+                                height="12"
+                                rx="2"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                              />
+                              <path
+                                d="M8 10h8M8 14h5"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          }
+                        />
+
+                        <SelectField
+                          label="Rear Wheel Drive Type"
+                          value={oemConfig.rearWheelDriveType}
+                          onChange={(value) =>
+                            handleOemChange("rearWheelDriveType", value)
+                          }
+                          placeholder="Select Drive Type"
+                          options={toSelectOptions(
+                            dropdownOptions.rearWheelDriveType
+                          )}
+                          icon={
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <circle
+                                cx="7.5"
+                                cy="16"
+                                r="2.3"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                              />
+                              <circle
+                                cx="16.5"
+                                cy="16"
+                                r="2.3"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                              />
+                              <path
+                                d="M6 9h9l3 3v2"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          }
+                        />
+                      </>
+                    )}
+
+                    {activeBodyTab === "bodyUi" && (
+                      <>
+                        <SelectField
+                          label="Body Type"
+                          value={bodyConfig.bodyType}
+                          onChange={handleBodyTypeChange}
+                          placeholder="Select Body Type"
+                          options={bodyTypeOptions.map((opt) => ({
+                            value: opt.key,
+                            label: opt.label,
+                          }))}
+                          icon={
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M4 16V9.5L12 5l8 4.5V16"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M4 12h16"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          }
+                          helperText="Choose a body type to render its dedicated configuration UI."
+                        />
+
+                        {bodyConfig.bodyType === "dump" && (
+                          <DumpBodyConfigurator
+                            selections={bodyConfig.dumpSelections}
+                            onSelectionChange={handleDumpSelectionChange}
+                          />
+                        )}
+
+                        {bodyConfig.bodyType === "service" && (
+                          <ServiceBodyConfigurator
+                            selections={bodyConfig.serviceSelections}
+                            onLengthChange={handleServiceLengthChange}
+                            onDimensionChange={handleServiceDimensionChange}
+                          />
+                        )}
+                      </>
+                    )}
                   </div>
-                ) : null}
-                <BridgeScene
-                  selectedBodyType={bodyConfig.bodyType}
-                  modelPath={resolvedModelPath}
-                  onModelReady={() => setIsPreviewLoading(false)}
-                />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-6">
+                  <button
+                    onClick={handleSaveConfiguration}
+                    disabled={!bodyConfig.bodyType || isSaving}
+                    className="flex-1 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSaving ? "Saving…" : "Save Configuration"}
+                  </button>
+                  <button className="flex-1 rounded-lg border border-gray-300 bg-white px-6 py-3 font-medium text-gray-700 transition-colors hover:bg-gray-50">
+                    Reset
+                  </button>
+                </div>
               </div>
 
-              {/* Configuration Summary */}
-              <div className="mt-6 rounded-lg bg-blue-50 p-4 border border-blue-100">
-                <p className="text-sm font-medium text-gray-900">Current Configuration</p>
-                <div className="mt-3 space-y-1 text-sm text-gray-600">
-                  {Object.entries(oemConfig).map(
-                    ([key, value]) =>
-                      value && (
-                        <div key={key} className="flex justify-between">
-                          <span className="capitalize">{key.replace(/([A-Z])/g, " $1")}:</span>
-                          <span className="font-medium text-gray-900">{value}</span>
+              {/* Right Section - 3D Preview */}
+              <div className="relative z-0">
+                <h2 className="mb-6 text-xl font-semibold text-gray-900">
+                  Preview
+                </h2>
+                <div className="relative h-[600px] w-full overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-md">
+                  <div className="absolute left-4 top-4 z-10 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm">
+                    3D Model View
+                  </div>
+                  <div className="absolute bottom-4 left-4 z-10 rounded-lg bg-white px-3 py-2 text-xs text-gray-600 shadow-sm">
+                    <p className="font-medium">
+                      Drag to rotate • Scroll to zoom
+                    </p>
+                  </div>
+                  {!bodyConfig.bodyType ? (
+                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/82 backdrop-blur-sm">
+                      <div className="max-w-xs rounded-2xl border border-slate-200 bg-white px-6 py-5 text-center shadow-lg">
+                        <p className="text-sm font-semibold text-slate-900">
+                          Select body type to preview
+                        </p>
+                        <p className="mt-2 text-sm text-slate-500">
+                          Choose Dump Body or Service Body to load the 3D model.
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                  {bodyConfig.bodyType && isPreviewLoading ? (
+                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/72 backdrop-blur-sm">
+                      <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-center shadow-lg">
+                        <div className="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
+                        <p className="mt-3 text-sm font-semibold text-slate-900">
+                          Loading 3D preview
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                  <BridgeScene
+                    selectedBodyType={bodyConfig.bodyType}
+                    modelPath={resolvedModelPath}
+                    onModelReady={() => setIsPreviewLoading(false)}
+                  />
+                </div>
+
+                {/* Configuration Summary */}
+                <div className="mt-6 rounded-lg bg-blue-50 p-4 border border-blue-100">
+                  <p className="text-sm font-medium text-gray-900">
+                    Current Configuration
+                  </p>
+                  <div className="mt-3 space-y-1 text-sm text-gray-600">
+                    {Object.entries(oemConfig).map(
+                      ([key, value]) =>
+                        value && (
+                          <div key={key} className="flex justify-between">
+                            <span className="capitalize">
+                              {key.replace(/([A-Z])/g, " $1")}:
+                            </span>
+                            <span className="font-medium text-gray-900">
+                              {value}
+                            </span>
+                          </div>
+                        )
+                    )}
+
+                    {bodyConfig.bodyType && (
+                      <>
+                        <div className="flex justify-between">
+                          <span>Body Type:</span>
+                          <span className="font-medium text-gray-900">
+                            {bodyTypeOptions.find(
+                              (opt) => opt.key === bodyConfig.bodyType
+                            )?.label ?? bodyConfig.bodyType}
+                          </span>
                         </div>
-                      )
-                  )}
 
-                  {bodyConfig.bodyType && (
-                    <>
-                      <div className="flex justify-between">
-                        <span>Body Type:</span>
-                        <span className="font-medium text-gray-900">
-                          {bodyTypeOptions.find((opt) => opt.key === bodyConfig.bodyType)?.label ?? bodyConfig.bodyType}
-                        </span>
-                      </div>
+                        <div className="flex justify-between">
+                          <span>Length:</span>
+                          <span className="font-medium text-gray-900">
+                            {bodyConfig.bodyType === "dump"
+                              ? bodyConfig.dumpSelections.length || "-"
+                              : bodyConfig.serviceSelections.length || "-"}
+                          </span>
+                        </div>
 
-                      <div className="flex justify-between">
-                        <span>Length:</span>
-                        <span className="font-medium text-gray-900">
-                          {bodyConfig.bodyType === "dump"
-                            ? (bodyConfig.dumpSelections.length || "-")
-                            : (bodyConfig.serviceSelections.length || "-")}
-                        </span>
-                      </div>
+                        {bodyConfig.bodyType === "dump" && (
+                          <>
+                            <div className="flex justify-between">
+                              <span>Side Height:</span>
+                              <span className="font-medium text-gray-900">
+                                {bodyConfig.dumpSelections.sideHeight || "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Body Style:</span>
+                              <span className="font-medium text-gray-900">
+                                {bodyConfig.dumpSelections.bodyStyle || "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Rear Gate:</span>
+                              <span className="font-medium text-gray-900">
+                                {bodyConfig.dumpSelections.rearGate || "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Asphalt Gate:</span>
+                              <span className="font-medium text-gray-900">
+                                {bodyConfig.dumpSelections.asphaltGate || "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Tailgate Angle:</span>
+                              <span className="font-medium text-gray-900">
+                                {bodyConfig.dumpSelections.tailgateAngle || "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Hoist:</span>
+                              <span className="font-medium text-gray-900">
+                                {bodyConfig.dumpSelections.hoist || "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Cab Guard:</span>
+                              <span className="font-medium text-gray-900">
+                                {bodyConfig.dumpSelections.cabGuard || "-"}
+                              </span>
+                            </div>
+                          </>
+                        )}
 
-                      {bodyConfig.bodyType === "dump" && (
-                        <>
-                          <div className="flex justify-between">
-                            <span>Side Height:</span>
-                            <span className="font-medium text-gray-900">{bodyConfig.dumpSelections.sideHeight || "-"}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Body Style:</span>
-                            <span className="font-medium text-gray-900">{bodyConfig.dumpSelections.bodyStyle || "-"}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Rear Gate:</span>
-                            <span className="font-medium text-gray-900">{bodyConfig.dumpSelections.rearGate || "-"}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Asphalt Gate:</span>
-                            <span className="font-medium text-gray-900">{bodyConfig.dumpSelections.asphaltGate || "-"}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Tailgate Angle:</span>
-                            <span className="font-medium text-gray-900">{bodyConfig.dumpSelections.tailgateAngle || "-"}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Hoist:</span>
-                            <span className="font-medium text-gray-900">{bodyConfig.dumpSelections.hoist || "-"}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Cab Guard:</span>
-                            <span className="font-medium text-gray-900">{bodyConfig.dumpSelections.cabGuard || "-"}</span>
-                          </div>
-                        </>
-                      )}
+                        {bodyConfig.bodyType === "service" && (
+                          <>
+                            <div className="flex justify-between">
+                              <span>Width:</span>
+                              <span className="font-medium text-gray-900">
+                                {bodyConfig.serviceSelections.width || "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Height:</span>
+                              <span className="font-medium text-gray-900">
+                                {bodyConfig.serviceSelections.height || "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>CA:</span>
+                              <span className="font-medium text-gray-900">
+                                {bodyConfig.serviceSelections.ca || "-"}
+                              </span>
+                            </div>
+                          </>
+                        )}
 
-                      {bodyConfig.bodyType === "service" && (
-                        <>
-                          <div className="flex justify-between">
-                            <span>Width:</span>
-                            <span className="font-medium text-gray-900">{bodyConfig.serviceSelections.width || "-"}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Height:</span>
-                            <span className="font-medium text-gray-900">{bodyConfig.serviceSelections.height || "-"}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>CA:</span>
-                            <span className="font-medium text-gray-900">{bodyConfig.serviceSelections.ca || "-"}</span>
-                          </div>
-                        </>
-                      )}
-
-                      <div className="flex justify-between">
-                        <span>Body Package Price:</span>
-                        <span className="font-medium text-gray-900">
-                          {bodyConfig.bodyType === "dump"
-                            ? formatCurrency(getDumpTotalPrice(dumpBodyPricingConfig, bodyConfig.dumpSelections))
-                            : formatCurrency(getTotalPriceFromSelections(serviceBodyPricingConfig, bodyConfig.serviceSelections))}
-                        </span>
-                      </div>
-                    </>
-                  )}
+                        <div className="flex justify-between">
+                          <span>Body Package Price:</span>
+                          <span className="font-medium text-gray-900">
+                            {bodyConfig.bodyType === "dump"
+                              ? formatCurrency(
+                                  getDumpTotalPrice(
+                                    dumpBodyPricingConfig,
+                                    bodyConfig.dumpSelections
+                                  )
+                                )
+                              : formatCurrency(
+                                  getTotalPriceFromSelections(
+                                    serviceBodyPricingConfig,
+                                    bodyConfig.serviceSelections
+                                  )
+                                )}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
+          )}
         </div>
       </main>
     </div>
