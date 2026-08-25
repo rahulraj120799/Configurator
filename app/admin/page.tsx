@@ -136,7 +136,7 @@ export default function AdminPage() {
   const [isTabModalOpen, setIsTabModalOpen] = useState(false);
   const [newFieldKeys, setNewFieldKeys] = useState<string[]>([]);
   const [pendingScrollFieldKey, setPendingScrollFieldKey] = useState<string | null>(null);
-  const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
     const loadConfig = async () => {
@@ -191,7 +191,7 @@ export default function AdminPage() {
       return;
     }
 
-    const node = fieldRefs.current[pendingScrollFieldKey];
+    const node = fieldRefs?.current?.[pendingScrollFieldKey];
     if (!node) {
       return;
     }
@@ -318,26 +318,6 @@ export default function AdminPage() {
             `Duplicate option label \"${duplicateOptionLabel}\" in field \"${field.label}\".`
           );
         }
-      }
-
-      for (const tab of config.tabsJson) {
-        const labels = normalizedFields
-          .filter((field) => field.tabKey === tab.tabKey)
-          .map((field) => field.label)
-          .filter(Boolean);
-
-        const duplicateFieldLabel = labels.find(
-          (label, index) =>
-            labels.findIndex(
-              (currentLabel) => normalizeLabel(currentLabel) === normalizeLabel(label)
-            ) !== index
-        );
-
-        // if (duplicateFieldLabel) {
-        //   throw new Error(
-        //     `Duplicate field label \"${duplicateFieldLabel}\" in tab \"${tab.label}\".`
-        //   );
-        // }
       }
 
       const response = await fetch("/api/admin/config", {
