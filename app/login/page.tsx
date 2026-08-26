@@ -2,6 +2,15 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  ArrowRight,
+  BadgeCheck,
+  BarChart3,
+  CircleAlert,
+  Mail,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { APP_NAME } from "@/app/constant";
 import { useSessionUser } from "@/app/hooks/use-session-user";
 import { saveSessionUser } from "@/lib/session-user";
@@ -77,16 +86,7 @@ export default function LoginPage() {
             {/* Brand */}
             <div className="relative z-10 flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/20 bg-white/10 shadow-lg backdrop-blur">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  className="h-6 w-6 text-blue-200"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M12 2 20 7v10l-8 5-8-5V7l8-5Z" />
-                  <path d="m8.5 12 2.2 2.2 4.8-5" />
-                </svg>
+                <BadgeCheck className="h-6 w-6 text-blue-200" />
               </div>
 
               <div>
@@ -119,18 +119,7 @@ export default function LoginPage() {
               <div className="mt-8 max-w-sm rounded-3xl border border-white/15 bg-white/[0.08] p-5 shadow-2xl backdrop-blur-xl">
                 <div className="flex items-center gap-4">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-400/20">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="h-6 w-6 text-blue-200"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M4 19V9" />
-                      <path d="M10 19V5" />
-                      <path d="M16 19v-7" />
-                      <path d="M22 19V2" />
-                    </svg>
+                    <BarChart3 className="h-6 w-6 text-blue-200" />
                   </div>
 
                   <div>
@@ -145,16 +134,7 @@ export default function LoginPage() {
 
             {/* Security */}
             <div className="relative z-10 flex items-center gap-3 text-sm text-blue-100/70">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                className="h-5 w-5"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
-                <path d="m9 12 2 2 4-4" />
-              </svg>
+              <ShieldCheck className="h-5 w-5" />
 
               <span>Your data is secure with us</span>
             </div>
@@ -167,15 +147,7 @@ export default function LoginPage() {
               {/* Mobile logo */}
               <div className="mb-8 flex items-center gap-3 lg:hidden">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    className="h-5 w-5"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M12 2 20 7v10l-8 5-8-5V7l8-5Z" />
-                  </svg>
+                  <BadgeCheck className="h-5 w-5" />
                 </div>
 
                 <span className="font-bold text-slate-900">{APP_NAME}</span>
@@ -184,16 +156,7 @@ export default function LoginPage() {
               {/* Heading */}
               <div className="mb-7">
                 <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    className="h-6 w-6"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                  >
-                    <path d="M20 21a8 8 0 0 0-16 0" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
+                  <UserRound className="h-6 w-6" />
                 </div>
 
                 <h2 className="text-3xl font-bold tracking-tight text-slate-900">
@@ -214,7 +177,7 @@ export default function LoginPage() {
                   </span>
 
                   <div className="group relative">
-                    <UserIcon />
+                    <UserRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
 
                     <input
                       type="text"
@@ -235,7 +198,7 @@ export default function LoginPage() {
                   </span>
 
                   <div className="relative">
-                    <MailIcon />
+                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
 
                     <input
                       type="email"
@@ -271,17 +234,7 @@ export default function LoginPage() {
                 {/* Error */}
                 {error && (
                   <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="mt-0.5 h-4 w-4 shrink-0"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <circle cx="12" cy="12" r="9" />
-                      <path d="M12 8v4" />
-                      <path d="M12 16h.01" />
-                    </svg>
+                    <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
 
                     {error}
                   </div>
@@ -294,31 +247,13 @@ export default function LoginPage() {
                 >
                   <span>Sign in</span>
 
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    className="h-4 w-4 transition-transform group-hover:translate-x-1"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M5 12h14" />
-                    <path d="m13 6 6 6-6 6" />
-                  </svg>
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </button>
               </form>
 
               {/* Footer */}
               <div className="mt-7 flex items-center justify-center gap-2 text-xs text-slate-400">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  className="h-4 w-4"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
-                  <path d="m9 12 2 2 4-4" />
-                </svg>
+                <ShieldCheck className="h-4 w-4" />
 
                 Secure access to your configuration workspace
               </div>
@@ -330,34 +265,3 @@ export default function LoginPage() {
   );
 }
 
-/* ================= ICON COMPONENTS ================= */
-
-function UserIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
-    >
-      <path d="M20 21a8 8 0 0 0-16 0" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
-}
-
-function MailIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
-    >
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <path d="m3 7 9 6 9-6" />
-    </svg>
-  );
-}

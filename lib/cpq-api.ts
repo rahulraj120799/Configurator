@@ -48,18 +48,27 @@ export type QuoteDto = {
 };
 
 export type PagedQuotes = {
-  content: Array<{
-    id: number;
-    quoteNumber: string;
-    bodyType: string;
-    totalPrice: number;
-    status: string;
-    [key: string]: unknown;
-  }>;
+  content: QuoteHistoryItem[];
   page: number;
   size: number;
   totalElements: number;
   totalPages: number;
+};
+
+export type QuoteHistoryItem = {
+  id: number;
+  quoteNumber: string;
+  customerEmail: string;
+  customerName: string;
+  productSlug: string;
+  productName: string;
+  basePrice: number;
+  discount: number;
+  totalPrice: number;
+  currency: string;
+  status: string;
+  submission: SubmitQuotePayload;
+  createdAt: string;
 };
 
 type BasicAuthCredentials = {

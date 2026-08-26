@@ -11,6 +11,7 @@ import {
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
 import { Box3, Vector3 } from "three";
+import { ChevronDown, ListTree, Ruler, SquareCheck, Type } from "lucide-react";
 import { ConfiguratorShell } from "./components/configurator-shell";
 import { QuoteSummary, type QuoteGroup } from "./components/quote-summary";
 import { useSessionUser } from "@/app/hooks/use-session-user";
@@ -144,107 +145,18 @@ const iconToneByFieldType: Record<AdminFieldType, SelectIconTone> = {
 
 const fieldIcon = (field: AdminFieldConfig) => {
   if (field.type === "number") {
-    return (
-      <svg
-        viewBox="0 0 24 24"
-        className="h-4 w-4"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M3.5 12h17"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-        <path
-          d="M7 9.5 4.5 12 7 14.5M17 9.5 19.5 12 17 14.5"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
+    return <Ruler className="h-4 w-4" />;
   }
 
   if (field.type === "checkbox") {
-    return (
-      <svg
-        viewBox="0 0 24 24"
-        className="h-4 w-4"
-        fill="none"
-        aria-hidden="true"
-      >
-        <rect
-          x="4"
-          y="5"
-          width="16"
-          height="14"
-          rx="2"
-          stroke="currentColor"
-          strokeWidth="1.8"
-        />
-        <path
-          d="m8 12 2.5 2.5L16 9"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
+    return <SquareCheck className="h-4 w-4" />;
   }
 
   if (field.type === "text") {
-    return (
-      <svg
-        viewBox="0 0 24 24"
-        className="h-4 w-4"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M6 7h12"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-        <path
-          d="M9 7v10m6-10v10"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-        <path
-          d="M5 17h14"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-      </svg>
-    );
+    return <Type className="h-4 w-4" />;
   }
 
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-      <rect
-        x="4"
-        y="6"
-        width="16"
-        height="12"
-        rx="2"
-        stroke="currentColor"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M8 10h8M8 14h5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <ListTree className="h-4 w-4" />;
 };
 
 const defaultValueForField = (field: AdminFieldConfig): FieldValue => {
@@ -451,20 +363,7 @@ function SelectField({
           <span
             className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border p-1 ${selectFieldClasses.chevron}`}
           >
-            <svg
-              viewBox="0 0 20 20"
-              className="h-3.5 w-3.5"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M5.75 7.75 10 12l4.25-4.25"
-                stroke="currentColor"
-                strokeWidth="1.9"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <ChevronDown className="h-3.5 w-3.5" />
           </span>
         </div>
       </div>
@@ -578,6 +477,9 @@ export default function ConfigurePage() {
     bodyType: string;
     totalPrice: number;
     groups: QuoteGroup[];
+    recipientEmail: string;
+    emailSent: boolean;
+    emailMessage?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -841,6 +743,8 @@ export default function ConfigurePage() {
         error?: string;
         message?: string;
         totalPrice?: number;
+        emailSent?: boolean;
+        emailMessage?: string;
       };
 
       if (!response.ok) {
@@ -855,8 +759,15 @@ export default function ConfigurePage() {
         bodyType: bodyTypeValue,
         totalPrice: responseBody.totalPrice ?? totalPrice,
         groups: quoteGroups,
+        recipientEmail: user.email,
+        emailSent: responseBody.emailSent === true,
+        emailMessage: responseBody.emailMessage,
       });
-      setSavedMessage("Quote retrieved successfully");
+      setSavedMessage(
+        responseBody.emailSent
+          ? "Quote created and emailed successfully"
+          : "Quote created, but email delivery failed"
+      );
       setIsQuoteViewOpen(true);
 
       const initialSelections = buildInitialSelections(schema);
@@ -909,6 +820,9 @@ export default function ConfigurePage() {
           bodyType={quoteSnapshot.bodyType}
           totalPrice={quoteSnapshot.totalPrice}
           groups={quoteSnapshot.groups}
+          recipientEmail={quoteSnapshot.recipientEmail}
+          emailSent={quoteSnapshot.emailSent}
+          emailMessage={quoteSnapshot.emailMessage}
           onBack={() => setIsQuoteViewOpen(false)}
         />
       </ConfiguratorShell>
@@ -1039,20 +953,7 @@ export default function ConfigurePage() {
                           <span
                             className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border p-1 ${selectFieldClasses.chevron}`}
                           >
-                            <svg
-                              viewBox="0 0 20 20"
-                              className="h-3.5 w-3.5"
-                              fill="none"
-                              aria-hidden="true"
-                            >
-                              <path
-                                d="M5.75 7.75 10 12l4.25-4.25"
-                                stroke="currentColor"
-                                strokeWidth="1.9"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
+                            <ChevronDown className="h-3.5 w-3.5" />
                           </span>
                         </div>
                       ) : (
@@ -1114,22 +1015,11 @@ export default function ConfigurePage() {
               className="mb-3 flex shrink-0 items-center justify-between text-left"
             >
               <h2 className="text-xl font-semibold text-gray-900">Preview</h2>
-              <svg
-                viewBox="0 0 20 20"
+              <ChevronDown
                 className={`h-4 w-4 text-slate-500 transition-transform ${
                   isPreviewOpen ? "rotate-180" : ""
                 }`}
-                fill="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="M5.75 7.75 10 12l4.25-4.25"
-                  stroke="currentColor"
-                  strokeWidth="1.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              />
             </button>
             {isPreviewOpen ? (
               <div className="relative h-[500px] w-full shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-md">
@@ -1176,22 +1066,11 @@ export default function ConfigurePage() {
                 <p className="text-sm font-medium text-gray-900">
                   Current Configuration
                 </p>
-                <svg
-                  viewBox="0 0 20 20"
+                <ChevronDown
                   className={`h-4 w-4 text-slate-500 transition-transform ${
                     isCurrentConfigOpen ? "rotate-180" : ""
                   }`}
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M5.75 7.75 10 12l4.25-4.25"
-                    stroke="currentColor"
-                    strokeWidth="1.9"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                />
               </button>
               {isCurrentConfigOpen ? (
                 <div className="mt-3 space-y-1 text-sm text-gray-600">

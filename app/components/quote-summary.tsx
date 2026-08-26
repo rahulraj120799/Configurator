@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowLeft, Check, CircleAlert, X } from "lucide-react";
+
 export type QuoteLineItem = {
   fieldKey: string;
   label: string;
@@ -17,6 +19,13 @@ export type QuoteSummaryProps = {
   bodyType?: string;
   totalPrice: number;
   groups: QuoteGroup[];
+  quoteNumber?: string;
+  customerName?: string;
+  recipientEmail?: string;
+  createdAt?: string;
+  status?: string;
+  emailSent?: boolean;
+  emailMessage?: string;
   onBack?: () => void;
   onClose?: () => void;
 };
@@ -31,6 +40,13 @@ export function QuoteSummary({
   bodyType,
   totalPrice,
   groups,
+  quoteNumber,
+  customerName,
+  recipientEmail,
+  createdAt,
+  status,
+  emailSent,
+  emailMessage,
   onBack,
   onClose,
 }: QuoteSummaryProps) {
@@ -47,26 +63,15 @@ export function QuoteSummary({
               className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
               aria-label="Back to configurator"
             >
-              <svg
-                viewBox="0 0 20 20"
-                className="h-4 w-4"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="M12.25 15.5 6.75 10l5.5-5.5"
-                  stroke="currentColor"
-                  strokeWidth="1.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <ArrowLeft className="h-4 w-4" />
             </button>
           ) : null}
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Quote Details</h1>
             <p className="text-sm text-gray-500">
-              Review the configuration you selected below.
+              {quoteNumber
+                ? `${quoteNumber} · ${customerName || recipientEmail || "Customer"}`
+                : "Review the configuration you selected below."}
             </p>
           </div>
         </div>
@@ -77,51 +82,79 @@ export function QuoteSummary({
             className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
             aria-label="Close quote"
           >
-            <svg
-              viewBox="0 0 20 20"
-              className="h-4 w-4"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="m5 5 10 10M15 5 5 15"
-                stroke="currentColor"
-                strokeWidth="1.9"
-                strokeLinecap="round"
-              />
-            </svg>
+            <X className="h-4 w-4" />
           </button>
         ) : null}
       </div>
 
-      <div className="mb-8 flex items-center gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-5 shadow-sm">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-[0_8px_18px_rgba(16,185,129,0.35)]">
-          <svg
-            viewBox="0 0 20 20"
-            className="h-5 w-5"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="m5 10.5 3 3 7-7"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+      {typeof emailSent === "boolean" ? (
+        <div
+          className={`mb-8 flex items-center gap-4 rounded-2xl border px-6 py-5 shadow-sm ${
+            emailSent === false
+              ? "border-amber-200 bg-amber-50"
+              : "border-emerald-200 bg-emerald-50"
+          }`}
+        >
+        <span
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white ${
+            emailSent === false
+              ? "bg-amber-500 shadow-[0_8px_18px_rgba(245,158,11,0.3)]"
+              : "bg-emerald-500 shadow-[0_8px_18px_rgba(16,185,129,0.35)]"
+          }`}
+        >
+          {emailSent === false ? (
+            <CircleAlert className="h-5 w-5" />
+          ) : (
+            <Check className="h-5 w-5" />
+          )}
         </span>
         <div>
-          <p className="text-sm font-semibold text-emerald-800">
-            Quote retrieved successfully
+          <p
+            className={`text-sm font-semibold ${
+              emailSent === false ? "text-amber-800" : "text-emerald-800"
+            }`}
+          >
+            {emailSent === false
+              ? "Quote created, but email delivery failed"
+              : "Quote created and emailed successfully"}
           </p>
-          <p className="text-xs text-emerald-700">
-            {bodyType
+          <p
+            className={`text-xs ${
+              emailSent === false ? "text-amber-700" : "text-emerald-700"
+            }`}
+          >
+            {emailSent === false
+              ? emailMessage ?? "You can still review your quote below."
+              : recipientEmail
+              ? `A copy was sent to ${recipientEmail}.`
+              : bodyType
               ? `Your ${bodyType} configuration is ready to review.`
               : "Your configuration is ready to review."}
           </p>
         </div>
-      </div>
+        </div>
+      ) : quoteNumber ? (
+        <div className="mb-8 grid gap-4 border-y border-gray-200 bg-white px-1 py-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <p className="text-xs font-semibold uppercase text-gray-500">Customer</p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">{customerName || "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-gray-500">Email</p>
+            <p className="mt-1 break-all text-sm font-semibold text-gray-900">{recipientEmail || "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-gray-500">Created</p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              {createdAt ? new Date(createdAt).toLocaleString() : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-gray-500">Status</p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">{status || "—"}</p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.6fr_1fr]">
         <div className="space-y-6">

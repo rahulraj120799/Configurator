@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, X } from "lucide-react";
 import { ConfiguratorShell } from "@/app/components/configurator-shell";
 import { defaultCatalogConfig } from "@/lib/admin-config";
 import type {
@@ -138,7 +139,7 @@ export default function AdminPage() {
   const [isTabModalOpen, setIsTabModalOpen] = useState(false);
   const [newFieldKeys, setNewFieldKeys] = useState<string[]>([]);
   const [pendingScrollFieldKey, setPendingScrollFieldKey] = useState<string | null>(null);
-  const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
+  const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     const loadConfig = async () => {
@@ -455,7 +456,7 @@ export default function AdminPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-600/80">
-                Admin Configurator
+                Catalog Setup
               </p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
                 Manage Tabs, Fields, Options, and Conditions
@@ -487,7 +488,7 @@ export default function AdminPage() {
                 disabled={isSaving}
                 className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSaving ? "Saving..." : "Save Admin Config"}
+                {isSaving ? "Saving..." : "Save Catalog"}
               </button>
             </div>
           </div>
@@ -623,22 +624,11 @@ export default function AdminPage() {
                         {field.label.trim() || "Untitled Field"}
                       </p>
                       <span className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-100 bg-white text-blue-700 shadow-sm transition">
-                        <svg
-                          viewBox="0 0 20 20"
-                          fill="none"
-                          aria-hidden="true"
+                        <ChevronDown
                           className={`h-5 w-5 transition-transform duration-200 ${
                             isExpanded ? "rotate-180" : "rotate-0"
                           }`}
-                        >
-                          <path
-                            d="M5 7.5L10 12.5L15 7.5"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
+                        />
                       </span>
                     </button>
 
@@ -1477,19 +1467,7 @@ export default function AdminPage() {
                 aria-label="Close tab editor"
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
               >
-                <svg
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  aria-hidden="true"
-                  className="h-4 w-4"
-                >
-                  <path
-                    d="M5 5L15 15M15 5L5 15"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                <X className="h-4 w-4" />
               </button>
             </div>
 

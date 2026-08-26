@@ -3,6 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ReactNode, useEffect } from "react";
+import {
+  History,
+  LogOut,
+  Settings,
+  SlidersHorizontal,
+  Wrench,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import { APP_NAME } from "@/app/constant";
 import { useSessionUser } from "@/app/hooks/use-session-user";
 import { clearSessionUser, getInitials } from "@/lib/session-user";
@@ -11,13 +20,34 @@ type ShellNavItem = {
   id: string;
   label: string;
   href: string;
-  icon: string;
+  icon: LucideIcon;
   adminOnly?: boolean;
+  children?: Array<Pick<ShellNavItem, "id" | "label" | "href" | "icon">>;
 };
 
 const navItems: ShellNavItem[] = [
-  { id: "configure", label: "Configure", href: "/", icon: "⚙️" },
-  { id: "admin", label: "Admin", href: "/admin", icon: "🛠️", adminOnly: true },
+  { id: "configure", label: "Configure", href: "/", icon: Settings },
+  {
+    id: "admin",
+    label: "Admin",
+    href: "/admin",
+    icon: Wrench,
+    adminOnly: true,
+    children: [
+      {
+        id: "admin",
+        label: "Catalog Setup",
+        href: "/admin",
+        icon: SlidersHorizontal,
+      },
+      {
+        id: "admin-history",
+        label: "Quote History",
+        href: "/admin/history",
+        icon: History,
+      },
+    ],
+  },
 ];
 
 type ConfiguratorShellProps = {
@@ -33,9 +63,7 @@ export function ConfiguratorShell({
 }: ConfiguratorShellProps) {
   const router = useRouter();
   const { user, isLoading } = useSessionUser();
-  const isAdminRoute = navItems.some(
-    (item) => item.id === activeNav && item.adminOnly
-  );
+  const isAdminRoute = activeNav.startsWith("admin");
 
   useEffect(() => {
     if (isLoading) {
@@ -72,13 +100,7 @@ export function ConfiguratorShell({
         <div className="relative flex h-full flex-col p-6">
           <div className="mb-8 flex shrink-0 items-center gap-3">
             <div className="rounded-2xl border border-white/20 bg-white/12 p-2.5 shadow-lg backdrop-blur-xl">
-              <svg
-                className="h-6 w-6 text-orange-200"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+              <Zap className="h-6 w-6 fill-current text-orange-200" />
             </div>
             <div className="min-w-0">
               <h1 className="text-lg font-bold leading-tight tracking-tight">
@@ -97,26 +119,50 @@ export function ConfiguratorShell({
                 return null;
               }
 
-              const isActive = activeNav === item.id;
+              const isActive =
+                activeNav === item.id ||
+                item.children?.some((child) => child.id === activeNav);
+              const Icon = item.icon;
 
               return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-300 ${
-                    isActive
-                      ? "border border-white/20 bg-white text-slate-900 shadow-[0_16px_40px_rgba(15,23,42,0.22)]"
-                      : "text-blue-50/90 hover:bg-white/12 hover:text-white"
-                  }`}
-                >
-                  <span className={`text-lg ${isActive ? "" : "opacity-95"}`}>
-                    {item.icon}
-                  </span>
-                  <span>{item.label}</span>
-                  {isActive ? (
-                    <span className="ml-auto h-2.5 w-2.5 rounded-full bg-orange-500" />
+                <div key={item.id}>
+                  <Link
+                    href={item.href}
+                    className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-300 ${
+                      isActive
+                        ? "border border-white/20 bg-white text-slate-900 shadow-[0_16px_40px_rgba(15,23,42,0.22)]"
+                        : "text-blue-50/90 hover:bg-white/12 hover:text-white"
+                    }`}
+                  >
+                    <Icon className={`h-5 w-5 ${isActive ? "" : "opacity-95"}`} />
+                    <span>{item.label}</span>
+                    {isActive ? (
+                      <span className="ml-auto h-2.5 w-2.5 rounded-full bg-orange-500" />
+                    ) : null}
+                  </Link>
+                  {item.children ? (
+                    <div className="ml-6 mt-2 space-y-1 border-l border-white/20 pl-3">
+                      {item.children.map((child) => {
+                        const ChildIcon = child.icon;
+
+                        return (
+                          <Link
+                            key={child.id}
+                            href={child.href}
+                            className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                              activeNav === child.id
+                                ? "bg-white/16 text-white"
+                                : "text-blue-100/75 hover:bg-white/10 hover:text-white"
+                            }`}
+                          >
+                            <ChildIcon className="h-4 w-4 shrink-0" />
+                            <span>{child.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
                   ) : null}
-                </Link>
+                </div>
               );
             })}
 
@@ -144,7 +190,7 @@ export function ConfiguratorShell({
                 onClick={handleLogout}
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-500/80"
               >
-                <span>⎋</span>
+                <LogOut className="h-4 w-4" />
                 <span>Log out</span>
               </button>
             </div>
