@@ -13,6 +13,7 @@ import { OrbitControls, useGLTF } from "@react-three/drei";
 import { Box3, Vector3 } from "three";
 import { ConfiguratorShell } from "./components/configurator-shell";
 import { QuoteSummary, type QuoteGroup } from "./components/quote-summary";
+import { useSessionUser } from "@/app/hooks/use-session-user";
 import type {
   AdminConditionOperator,
   AdminConfigState,
@@ -560,6 +561,7 @@ function PreviewScene({
 }
 
 export default function ConfigurePage() {
+  const { user } = useSessionUser();
   const [schema, setSchema] = useState<AdminConfigState | null>(null);
   const [activeBodyTab, setActiveBodyTab] = useState<string>("");
   const [selections, setSelections] = useState<FieldValueMap>({});
@@ -700,9 +702,8 @@ export default function ConfigurePage() {
                 )?.label ?? value
               : value,
           price:
-            (field.type === "select"
-              ? optionPriceByValue(field, value)
-              : 0) + (field.basePrice ?? 0),
+            (field.type === "select" ? optionPriceByValue(field, value) : 0) +
+            (field.basePrice ?? 0),
         }));
 
       return {
@@ -813,6 +814,11 @@ export default function ConfigurePage() {
       return;
     }
 
+    if (!user?.fullName || !user?.email) {
+      setError("Sign in with your name and email to request a quote.");
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
     setSavedMessage(null);
@@ -827,18 +833,27 @@ export default function ConfigurePage() {
             schemaVersion: schema?.schemaVersion ?? null,
             selections,
           },
-          totalPrice,
+          customer: { fullName: user.fullName, email: user.email },
         }),
       });
 
+      const responseBody = (await response.json()) as {
+        error?: string;
+        message?: string;
+        totalPrice?: number;
+      };
+
       if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        throw new Error(body.error ?? "Failed to get quote for configuration");
+        throw new Error(
+          responseBody.message ??
+            responseBody.error ??
+            "Failed to get quote for configuration"
+        );
       }
 
       setQuoteSnapshot({
         bodyType: bodyTypeValue,
-        totalPrice,
+        totalPrice: responseBody.totalPrice ?? totalPrice,
         groups: quoteGroups,
       });
       setSavedMessage("Quote retrieved successfully");

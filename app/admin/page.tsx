@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ConfiguratorShell } from "@/app/components/configurator-shell";
+import { defaultCatalogConfig } from "@/lib/admin-config";
 import type {
   AdminConditionOperator,
   AdminConfigState,
@@ -129,6 +130,7 @@ export default function AdminPage() {
   const [selectedTabKey, setSelectedTabKey] = useState<string>("oemChassis");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [rulesDraft, setRulesDraft] = useState("[]");
@@ -191,7 +193,7 @@ export default function AdminPage() {
       return;
     }
 
-    const node = fieldRefs?.current?.[pendingScrollFieldKey];
+    const node = fieldRefs.current[pendingScrollFieldKey];
     if (!node) {
       return;
     }
@@ -267,6 +269,40 @@ export default function AdminPage() {
     setIsTabModalOpen(true);
   };
 
+  const handleSyncData = async () => {
+    try {
+      setError(null);
+      setSuccessMessage(null);
+      setIsSyncing(true);
+
+      const response = await fetch("/api/admin/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(defaultCatalogConfig),
+      });
+
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? "Failed to sync default data");
+      }
+
+      const saved = (await response.json()) as AdminConfigState;
+      setConfig({
+        tabsJson: saved.tabsJson,
+        fieldsJson: saved.fieldsJson,
+        rulesJson: saved.rulesJson,
+        schemaVersion: saved.schemaVersion,
+      });
+      setNewFieldKeys([]);
+      setRulesDraft(JSON.stringify(saved.rulesJson, null, 2));
+      setSuccessMessage(`Synced default data to schema version ${saved.schemaVersion}`);
+    } catch (syncError) {
+      setError(syncError instanceof Error ? syncError.message : "Failed to sync default data");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!config) {
       return;
@@ -318,6 +354,26 @@ export default function AdminPage() {
             `Duplicate option label \"${duplicateOptionLabel}\" in field \"${field.label}\".`
           );
         }
+      }
+
+      for (const tab of config.tabsJson) {
+        const labels = normalizedFields
+          .filter((field) => field.tabKey === tab.tabKey)
+          .map((field) => field.label)
+          .filter(Boolean);
+
+        const duplicateFieldLabel = labels.find(
+          (label, index) =>
+            labels.findIndex(
+              (currentLabel) => normalizeLabel(currentLabel) === normalizeLabel(label)
+            ) !== index
+        );
+
+        // if (duplicateFieldLabel) {
+        //   throw new Error(
+        //     `Duplicate field label \"${duplicateFieldLabel}\" in tab \"${tab.label}\".`
+        //   );
+        // }
       }
 
       const response = await fetch("/api/admin/config", {
@@ -414,6 +470,17 @@ export default function AdminPage() {
               <span className="rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-700">
                 Schema v{config.schemaVersion}
               </span>
+            {isSyncing === true && (
+              <button
+                type="button"
+                onClick={handleSyncData}
+                disabled={isSyncing || isSaving}
+                title="Overwrite the backend catalog with the known-good default data"
+                className="rounded-full border border-amber-300 bg-amber-50 px-5 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSyncing ? "Syncing..." : "Sync Data"}
+              </button>
+            )}
               <button
                 type="button"
                 onClick={handleSave}
@@ -1207,7 +1274,16 @@ export default function AdminPage() {
                                 />
                               </label>
                               <label className="min-w-0 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
-                                Model File Name
+                                <span className="flex items-center gap-1.5">
+                                  <span>File Name</span>
+                                  <span
+                                    className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-slate-50 text-[10px] font-bold normal-case tracking-normal text-slate-500"
+                                    aria-label="File name guidance"
+                                    title="Enter the exact file name uploaded to S3. Only files already available in the configured S3 asset location can be loaded in the preview."
+                                  >
+                                    i
+                                  </span>
+                                </span>
                                 <input
                                   value={option.modelFileName ?? ""}
                                   onChange={(event) => {
@@ -1228,7 +1304,6 @@ export default function AdminPage() {
                                       ),
                                     }));
                                   }}
-                                  placeholder="dump_body.glb"
                                   className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                                 />
                               </label>
