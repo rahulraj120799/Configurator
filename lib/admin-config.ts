@@ -1,12 +1,9 @@
-import { eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import {
-  adminConfigState,
-  type AdminConfigState,
-  type AdminFieldConfig,
-  type AdminRuleConfig,
-  type AdminTabConfig,
+import type {
+  AdminFieldConfig,
+  AdminRuleConfig,
+  AdminTabConfig,
 } from "@/lib/schema";
+import type { CatalogConfigInput } from "@/lib/cpq-api";
 
 const defaultTabs: AdminTabConfig[] = [
   {
@@ -598,59 +595,10 @@ const defaultRules: AdminRuleConfig[] = [
   },
 ];
 
-type AdminConfigUpdateInput = {
-  tabsJson: AdminTabConfig[];
-  fieldsJson: AdminFieldConfig[];
-  rulesJson: AdminRuleConfig[];
-  updatedBy?: string | null;
-};
-
-export const createDefaultAdminConfig = () => ({
-  id: 1 as const,
+/** Known-good seed catalog, used by the admin "Sync Data" action to overwrite bad data in the Java backend. */
+export const defaultCatalogConfig: CatalogConfigInput = {
   configName: "trailer-configurator",
-  schemaVersion: 1,
   tabsJson: defaultTabs,
   fieldsJson: defaultFields,
   rulesJson: defaultRules,
-  isActive: true,
-  updatedBy: "system",
-  updatedAt: new Date(),
-});
-
-export async function getOrCreateAdminConfig(): Promise<AdminConfigState> {
-  const existing = await db.query.adminConfigState.findFirst({
-    where: eq(adminConfigState.id, 1),
-  });
-
-  if (existing) {
-    return existing;
-  }
-
-  const [created] = await db
-    .insert(adminConfigState)
-    .values(createDefaultAdminConfig())
-    .returning();
-
-  return created;
-}
-
-export async function updateAdminConfig(
-  input: AdminConfigUpdateInput
-): Promise<AdminConfigState> {
-  const current = await getOrCreateAdminConfig();
-
-  const [updated] = await db
-    .update(adminConfigState)
-    .set({
-      tabsJson: input.tabsJson,
-      fieldsJson: input.fieldsJson,
-      rulesJson: input.rulesJson,
-      updatedBy: input.updatedBy ?? current.updatedBy,
-      updatedAt: new Date(),
-      schemaVersion: current.schemaVersion + 1,
-    })
-    .where(eq(adminConfigState.id, 1))
-    .returning();
-
-  return updated;
-}
+};

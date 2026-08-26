@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOrCreateAdminConfig, updateAdminConfig } from "@/lib/admin-config";
+import {
+  CpqApiError,
+  fetchCatalog,
+  getAdminCredentials,
+  getEmployeeCredentials,
+  updateCatalog,
+} from "@/lib/cpq-api";
 import type {
   AdminFieldConfig,
   AdminRuleConfig,
@@ -10,49 +16,73 @@ type AdminConfigPayload = {
   tabsJson: AdminTabConfig[];
   fieldsJson: AdminFieldConfig[];
   rulesJson: AdminRuleConfig[];
-  updatedBy?: string | null;
+  configName?: string;
 };
 
-const isNonEmptyArray = (value: unknown): value is unknown[] => Array.isArray(value);
+const toErrorResponse = (error: unknown) => {
+  if (error instanceof CpqApiError) {
+    return NextResponse.json(
+      {
+        error: error.error,
+        message: error.message,
+        details: error.details,
+        requestId: error.requestId,
+      },
+      { status: error.status }
+    );
+  }
+
+  return NextResponse.json(
+    { error: "INTERNAL_ERROR", message: "Unexpected server error" },
+    { status: 500 }
+  );
+};
 
 export async function GET() {
-  const config = await getOrCreateAdminConfig();
-  return NextResponse.json(config);
+  try {
+    const catalog = await fetchCatalog(getEmployeeCredentials());
+    return NextResponse.json(catalog);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 }
 
 export async function PUT(request: NextRequest) {
   const body = (await request.json()) as Partial<AdminConfigPayload>;
 
-  if (
-    !isNonEmptyArray(body.tabsJson) &&
-    !Array.isArray(body.tabsJson)
-  ) {
+  if (!Array.isArray(body.tabsJson)) {
     return NextResponse.json(
-      { error: "tabsJson must be an array" },
+      { error: "VALIDATION_ERROR", message: "tabsJson must be an array" },
       { status: 400 }
     );
   }
 
   if (!Array.isArray(body.fieldsJson)) {
     return NextResponse.json(
-      { error: "fieldsJson must be an array" },
+      { error: "VALIDATION_ERROR", message: "fieldsJson must be an array" },
       { status: 400 }
     );
   }
 
   if (!Array.isArray(body.rulesJson)) {
     return NextResponse.json(
-      { error: "rulesJson must be an array" },
+      { error: "VALIDATION_ERROR", message: "rulesJson must be an array" },
       { status: 400 }
     );
   }
 
-  const updated = await updateAdminConfig({
-    tabsJson: body.tabsJson,
-    fieldsJson: body.fieldsJson,
-    rulesJson: body.rulesJson,
-    updatedBy: body.updatedBy,
-  });
-
-  return NextResponse.json(updated);
+  try {
+    const updated = await updateCatalog(
+      {
+        configName: body.configName,
+        tabsJson: body.tabsJson,
+        fieldsJson: body.fieldsJson,
+        rulesJson: body.rulesJson,
+      },
+      getAdminCredentials()
+    );
+    return NextResponse.json(updated);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 }
