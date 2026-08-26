@@ -139,7 +139,7 @@ export default function AdminPage() {
   const [isTabModalOpen, setIsTabModalOpen] = useState(false);
   const [newFieldKeys, setNewFieldKeys] = useState<string[]>([]);
   const [pendingScrollFieldKey, setPendingScrollFieldKey] = useState<string | null>(null);
-  const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
     const loadConfig = async () => {
