@@ -11,7 +11,16 @@ import {
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
 import { Box3, Vector3 } from "three";
-import { ChevronDown, ListTree, Ruler, SquareCheck, Type } from "lucide-react";
+import {
+  ChevronDown,
+  FileText,
+  ListTree,
+  LoaderCircle,
+  RotateCcw,
+  Ruler,
+  SquareCheck,
+  Type,
+} from "lucide-react";
 import { ConfiguratorShell } from "./components/configurator-shell";
 import { QuoteSummary, type QuoteGroup } from "./components/quote-summary";
 import { useSessionUser } from "@/app/hooks/use-session-user";
@@ -983,15 +992,21 @@ export default function ConfigurePage() {
                 <button
                   onClick={handleSaveConfiguration}
                   disabled={!bodyTypeValue || isSaving}
-                  className="flex-1 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {isSaving ? "Loading..." : "Get Quote"}
+                  {isSaving ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileText className="h-4 w-4" />
+                  )}
+                  <span>{isSaving ? "Loading..." : "Get Quote"}</span>
                 </button>
                 <button
                   onClick={handleReset}
-                  className="flex-1 rounded-lg border border-gray-300 bg-white px-6 py-3 font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-3 font-medium text-gray-700 transition-colors hover:bg-gray-50"
                 >
-                  Reset
+                  <RotateCcw className="h-4 w-4" />
+                  <span>Reset</span>
                 </button>
               </div>
 
