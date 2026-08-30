@@ -1,7 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, X } from "lucide-react";
+import {
+  ChevronDown,
+  GripVertical,
+  LoaderCircle,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Save,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { ConfiguratorShell } from "@/app/components/configurator-shell";
 import { defaultCatalogConfig } from "@/lib/admin-config";
 import type {
@@ -111,6 +122,27 @@ const defaultCondition = (fieldKey = "bodyType", value = ""): AdminFieldConditio
   value,
 });
 
+const MAX_MODEL_BYTES = 100 * 1024 * 1024;
+
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+};
+
+type ModelUploadTarget = {
+  fieldKey: string;
+  fieldLabel: string;
+  optionIndex: number;
+  optionLabel: string;
+};
+
 const createField = (tabKey: string, sortOrder: number, fieldKey: string): AdminFieldConfig => ({
   fieldKey,
   tabKey,
@@ -137,9 +169,20 @@ export default function AdminPage() {
   const [rulesDraft, setRulesDraft] = useState("[]");
   const [expandedFieldKeys, setExpandedFieldKeys] = useState<string[]>([]);
   const [isTabModalOpen, setIsTabModalOpen] = useState(false);
+  const [isFieldOrderModalOpen, setIsFieldOrderModalOpen] = useState(false);
   const [newFieldKeys, setNewFieldKeys] = useState<string[]>([]);
   const [pendingScrollFieldKey, setPendingScrollFieldKey] = useState<string | null>(null);
+  const [reorderedFieldKeys, setReorderedFieldKeys] = useState<string[]>([]);
+  const [draggedFieldKey, setDraggedFieldKey] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [basePriceDrafts, setBasePriceDrafts] = useState<Record<string, string>>({});
+  const [modelUploadTarget, setModelUploadTarget] = useState<ModelUploadTarget | null>(null);
+  const [modelUploadFile, setModelUploadFile] = useState<File | null>(null);
+  const [modelUploadError, setModelUploadError] = useState<string | null>(null);
+  const [isModelDragActive, setIsModelDragActive] = useState(false);
+  const [isUploadingModel, setIsUploadingModel] = useState(false);
   const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
+  const modelFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const loadConfig = async () => {
@@ -189,6 +232,13 @@ export default function AdminPage() {
     );
   }, [config, selectedTabKey]);
 
+  const reorderedFields = useMemo(() => {
+    const fieldsByKey = new Map(fieldsForSelectedTab.map((field) => [field.fieldKey, field]));
+    return reorderedFieldKeys
+      .map((fieldKey) => fieldsByKey.get(fieldKey))
+      .filter((field): field is AdminFieldConfig => Boolean(field));
+  }, [fieldsForSelectedTab, reorderedFieldKeys]);
+
   useEffect(() => {
     if (!pendingScrollFieldKey) {
       return;
@@ -202,6 +252,15 @@ export default function AdminPage() {
     node.scrollIntoView({ behavior: "smooth", block: "start" });
     setPendingScrollFieldKey(null);
   }, [fieldsForSelectedTab, pendingScrollFieldKey]);
+
+  useEffect(() => {
+    if (!toastMessage) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setToastMessage(null), 3000);
+    return () => window.clearTimeout(timeoutId);
+  }, [toastMessage]);
 
   const toggleFieldAccordion = (fieldKey: string) => {
     setExpandedFieldKeys((current) =>
@@ -244,6 +303,7 @@ export default function AdminPage() {
     const newFieldKey = `field_${Date.now()}`;
     setPendingScrollFieldKey(newFieldKey);
     setNewFieldKeys((current) => [...current, newFieldKey]);
+    setExpandedFieldKeys((current) => [...current, newFieldKey]);
     updateConfig((current) => ({
       ...current,
       fieldsJson: [
@@ -256,6 +316,11 @@ export default function AdminPage() {
   const handleDeleteField = (fieldKey: string) => {
     setNewFieldKeys((current) => current.filter((key) => key !== fieldKey));
     setExpandedFieldKeys((current) => current.filter((key) => key !== fieldKey));
+    setBasePriceDrafts((current) => {
+      const next = { ...current };
+      delete next[fieldKey];
+      return next;
+    });
     if (pendingScrollFieldKey === fieldKey) {
       setPendingScrollFieldKey(null);
     }
@@ -268,6 +333,32 @@ export default function AdminPage() {
 
   const handleEditTab = () => {
     setIsTabModalOpen(true);
+  };
+
+  const handleOpenFieldOrderModal = () => {
+    setReorderedFieldKeys(fieldsForSelectedTab.map((field) => field.fieldKey));
+    setDraggedFieldKey(null);
+    setIsFieldOrderModalOpen(true);
+  };
+
+  const moveReorderedField = (sourceFieldKey: string, targetFieldKey: string) => {
+    if (sourceFieldKey === targetFieldKey) {
+      return;
+    }
+
+    setReorderedFieldKeys((current) => {
+      const next = [...current];
+      const sourceIndex = next.indexOf(sourceFieldKey);
+      const targetIndex = next.indexOf(targetFieldKey);
+
+      if (sourceIndex === -1 || targetIndex === -1) {
+        return current;
+      }
+
+      const [movedFieldKey] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, movedFieldKey);
+      return next;
+    });
   };
 
   const handleSyncData = async () => {
@@ -304,16 +395,21 @@ export default function AdminPage() {
     }
   };
 
-  const handleSave = async () => {
-    if (!config) {
-      return;
+  const handleSave = async (
+    configOverride?: EditableAdminConfig,
+    savedMessage?: string
+  ) => {
+    const configToSave = configOverride ?? config;
+
+    if (!configToSave) {
+      return false;
     }
 
     try {
       setError(null);
       setIsSaving(true);
       const parsedRules = JSON.parse(rulesDraft) as AdminRuleConfig[];
-      const normalizedFields = config.fieldsJson.map((field) => {
+      const normalizedFields = configToSave.fieldsJson.map((field) => {
         const normalizedOptions =
           field.type === "select"
             ? (field.options ?? []).map((option) => {
@@ -357,13 +453,13 @@ export default function AdminPage() {
         }
       }
 
-      for (const tab of config.tabsJson) {
+      for (const tab of configToSave.tabsJson) {
         const labels = normalizedFields
           .filter((field) => field.tabKey === tab.tabKey)
           .map((field) => field.label)
           .filter(Boolean);
 
-        const duplicateFieldLabel = labels.find(
+        labels.find(
           (label, index) =>
             labels.findIndex(
               (currentLabel) => normalizeLabel(currentLabel) === normalizeLabel(label)
@@ -383,7 +479,7 @@ export default function AdminPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          tabsJson: config.tabsJson,
+          tabsJson: configToSave.tabsJson,
           fieldsJson: normalizedFields,
           rulesJson: parsedRules,
           updatedBy: "admin-demo",
@@ -404,11 +500,146 @@ export default function AdminPage() {
       });
       setNewFieldKeys([]);
       setRulesDraft(JSON.stringify(saved.rulesJson, null, 2));
-      setSuccessMessage(`Saved schema version ${saved.schemaVersion}`);
+      setSuccessMessage(savedMessage ?? `Saved schema version ${saved.schemaVersion}`);
+      return true;
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save config");
+      return false;
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveFieldOrder = async () => {
+    if (!config) {
+      return;
+    }
+
+    const orderByFieldKey = new Map(
+      reorderedFieldKeys.map((fieldKey, index) => [fieldKey, index + 1])
+    );
+    const nextConfig: EditableAdminConfig = {
+      ...config,
+      fieldsJson: config.fieldsJson.map((field) =>
+        field.tabKey === selectedTabKey
+          ? { ...field, sortOrder: orderByFieldKey.get(field.fieldKey) ?? field.sortOrder }
+          : field
+      ),
+    };
+
+    setConfig(nextConfig);
+    const saved = await handleSave(nextConfig, "Order changed successfully.");
+    if (!saved) {
+      return;
+    }
+
+    setIsFieldOrderModalOpen(false);
+    setDraggedFieldKey(null);
+    setToastMessage("Order changed successfully.");
+  };
+
+  const applySavedCatalog = (saved: AdminConfigState) => {
+    setConfig({
+      tabsJson: saved.tabsJson,
+      fieldsJson: saved.fieldsJson,
+      rulesJson: saved.rulesJson,
+      schemaVersion: saved.schemaVersion,
+    });
+    setNewFieldKeys([]);
+    setRulesDraft(JSON.stringify(saved.rulesJson, null, 2));
+  };
+
+  const openModelUploadModal = (target: ModelUploadTarget) => {
+    setModelUploadTarget(target);
+    setModelUploadFile(null);
+    setModelUploadError(null);
+    setIsModelDragActive(false);
+  };
+
+  const closeModelUploadModal = () => {
+    if (isUploadingModel) {
+      return;
+    }
+
+    setModelUploadTarget(null);
+    setModelUploadFile(null);
+    setModelUploadError(null);
+    setIsModelDragActive(false);
+  };
+
+  const selectModelFile = (file: File | null | undefined) => {
+    if (!file) {
+      return;
+    }
+
+    if (!file.name.toLowerCase().endsWith(".glb")) {
+      setModelUploadError("Only .glb files are supported.");
+      setModelUploadFile(null);
+      return;
+    }
+
+    if (file.size > MAX_MODEL_BYTES) {
+      setModelUploadError("File exceeds the 100MB limit.");
+      setModelUploadFile(null);
+      return;
+    }
+
+    setModelUploadError(null);
+    setModelUploadFile(file);
+  };
+
+  const handleUploadModel = async () => {
+    if (!modelUploadTarget || !modelUploadFile || !config) {
+      return;
+    }
+
+    const optionValue = modelUploadTarget.optionLabel.trim();
+
+    if (!optionValue) {
+      setModelUploadError("Add an option label before uploading a model.");
+      return;
+    }
+
+    try {
+      setIsUploadingModel(true);
+      setModelUploadError(null);
+
+      // The backend resolves the option from the saved catalog, so persist pending edits first.
+      const persisted = await handleSave(config, "Catalog saved before model upload.");
+      if (!persisted) {
+        setModelUploadError("Unable to save the catalog before uploading. Fix the errors and retry.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", modelUploadFile);
+
+      const response = await fetch(
+        `/api/admin/config/fields/${encodeURIComponent(
+          modelUploadTarget.fieldKey
+        )}/options/${encodeURIComponent(optionValue)}/model`,
+        { method: "POST", body: formData }
+      );
+
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as
+          | { message?: string; error?: string }
+          | null;
+        throw new Error(body?.message ?? body?.error ?? "Failed to upload the model file");
+      }
+
+      const saved = (await response.json()) as AdminConfigState;
+      applySavedCatalog(saved);
+      setSuccessMessage(`Model uploaded and linked to "${optionValue}".`);
+      setToastMessage("Model uploaded successfully.");
+      setModelUploadTarget(null);
+      setModelUploadFile(null);
+    } catch (uploadError) {
+      setModelUploadError(
+        uploadError instanceof Error ? uploadError.message : "Failed to upload the model file"
+      );
+    } finally {
+      setIsUploadingModel(false);
     }
   };
 
@@ -418,19 +649,39 @@ export default function AdminPage() {
         activeNav="admin"
         sidebarContent={
           <div className="rounded-[20px] border border-white/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.08))] px-4 py-4 shadow-xl backdrop-blur-xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-100/80">
-              Admin Workspace
-            </p>
-            <p className="mt-2 text-2xl font-bold text-white">Loading</p>
-            <p className="mt-2 text-xs text-blue-100/75">
-              Preparing configurator schema.
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-blue-100">
+                <LoaderCircle className="h-5 w-5 animate-spin" />
+              </span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-100/80">
+                  Admin Workspace
+                </p>
+                <p className="mt-1 text-xl font-bold text-white">Loading catalog</p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-blue-100/75">
+              Preparing tabs, fields, options, and conditions.
             </p>
           </div>
         }
       >
         <div className="mx-auto max-w-7xl px-8 py-8">
-          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
-            <p className="text-sm text-slate-600">Loading admin configurator...</p>
+          <div className="flex min-h-[420px] items-center justify-center rounded-[28px] border border-slate-200 bg-white p-8 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
+            <div className="flex max-w-md flex-col items-center text-center">
+              <span className="inline-flex h-16 w-16 items-center justify-center rounded-full border border-blue-100 bg-blue-50 text-blue-700 shadow-sm">
+                <LoaderCircle className="h-8 w-8 animate-spin" />
+              </span>
+              <h1 className="mt-5 text-2xl font-semibold tracking-tight text-slate-900">
+                Loading admin catalog
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Fetching the latest configurator setup. This can take a moment if the backend is waking up or the network is slow.
+              </p>
+              <div className="mt-6 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full w-1/2 animate-pulse rounded-full bg-blue-600" />
+              </div>
+            </div>
           </div>
         </div>
       </ConfiguratorShell>
@@ -468,27 +719,34 @@ export default function AdminPage() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <span className="rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-700">
-                Schema v{config.schemaVersion}
-              </span>
             {isSyncing === true && (
               <button
                 type="button"
                 onClick={handleSyncData}
                 disabled={isSyncing || isSaving}
                 title="Overwrite the backend catalog with the known-good default data"
-                className="rounded-full border border-amber-300 bg-amber-50 px-5 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-5 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSyncing ? "Syncing..." : "Sync Data"}
+                {isSyncing ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                <span>{isSyncing ? "Syncing..." : "Sync Data"}</span>
               </button>
             )}
               <button
                 type="button"
-                onClick={handleSave}
+                onClick={() => void handleSave()}
                 disabled={isSaving}
-                className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSaving ? "Saving..." : "Save Catalog"}
+                {isSaving ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                <span>{isSaving ? "Saving..." : "Save Catalog"}</span>
               </button>
             </div>
           </div>
@@ -513,16 +771,18 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={handleEditTab}
-                  className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                 >
-                  Edit Tab
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span>Edit Tab</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleAddTab}
-                  className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
                 >
-                  Add Tab
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Tab</span>
                 </button>
               </div>
             </div>
@@ -532,10 +792,10 @@ export default function AdminPage() {
                   key={tab.tabKey}
                   type="button"
                   onClick={() => setSelectedTabKey(tab.tabKey)}
-                  className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                  className={`rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition ${
                     selectedTabKey === tab.tabKey
-                      ? "border-blue-300 bg-blue-50 text-blue-800"
-                      : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300"
+                      ? "border-blue-600 bg-blue-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)]"
+                      : "border-blue-100 bg-white text-blue-700 hover:border-blue-300 hover:bg-blue-50"
                   }`}
                 >
                   {tab.label || tab.tabKey}
@@ -544,7 +804,7 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="grid gap-6">
 
             <div className="space-y-6">
             <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
@@ -553,13 +813,25 @@ export default function AdminPage() {
                   <h2 className="text-base font-semibold text-slate-900">Fields</h2>
                   <p className="text-sm text-slate-500">Manage fields for the selected tab.</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAddField}
-                  className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-                >
-                  Add Field
-                </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleOpenFieldOrderModal}
+                        disabled={fieldsForSelectedTab.length < 2 || isSaving}
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <GripVertical className="h-4 w-4" />
+                        <span>Reorder Fields</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddField}
+                        className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Add Field</span>
+                      </button>
+                    </div>
               </div>
             </div>
 
@@ -607,9 +879,10 @@ export default function AdminPage() {
                           <button
                             type="button"
                             onClick={() => handleDeleteField(field.fieldKey)}
-                            className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                            className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
                           >
-                            Delete
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span>Delete</span>
                           </button>
                         </div>
                       ) : null}
@@ -641,15 +914,6 @@ export default function AdminPage() {
                           value={field.label}
                           onChange={(event) => {
                             const value = event.target.value;
-                            const currentFieldKey = field.fieldKey;
-                            const isTransientField = newFieldKeys.includes(currentFieldKey);
-                            const nextFieldKey = currentFieldKey.startsWith("field_")
-                              ? ensureUniqueFieldKey(
-                                  config.fieldsJson,
-                                  toCamelFieldKey(value),
-                                  fieldIndex
-                                )
-                              : currentFieldKey;
                             updateConfig((current) => ({
                               ...current,
                               fieldsJson: current.fieldsJson.map((item, itemIndex) => {
@@ -657,50 +921,59 @@ export default function AdminPage() {
                                   return item;
                                 }
 
-                                const nextLabel = value;
-                                const isNewFieldKey = item.fieldKey.startsWith("field_");
-                                const generatedKey = isNewFieldKey
-                                  ? ensureUniqueFieldKey(
-                                      current.fieldsJson,
-                                      toCamelFieldKey(nextLabel),
-                                      itemIndex
-                                    )
-                                  : item.fieldKey;
-
                                 return {
                                   ...item,
-                                  label: nextLabel,
-                                  fieldKey: generatedKey,
-                                };
-                              }),
-                              rulesJson: current.rulesJson.map((rule) => {
-                                const updatedField = current.fieldsJson[fieldIndex];
-                                const nextGenerated = updatedField.fieldKey.startsWith("field_")
-                                  ? ensureUniqueFieldKey(
-                                      current.fieldsJson,
-                                      toCamelFieldKey(value),
-                                      fieldIndex
-                                    )
-                                  : updatedField.fieldKey;
-
-                                return {
-                                  ...rule,
-                                  parentFieldKey:
-                                    rule.parentFieldKey === field.fieldKey
-                                      ? nextGenerated
-                                      : rule.parentFieldKey,
-                                  targetFieldKey:
-                                    rule.targetFieldKey === field.fieldKey
-                                      ? nextGenerated
-                                      : rule.targetFieldKey,
+                                  label: value,
                                 };
                               }),
                             }));
-                            if (isTransientField && nextFieldKey !== currentFieldKey) {
+                          }}
+                          onBlur={(event) => {
+                            const currentFieldKey = field.fieldKey;
+
+                            if (!currentFieldKey.startsWith("field_")) {
+                              return;
+                            }
+
+                            const nextFieldKey = ensureUniqueFieldKey(
+                              config.fieldsJson,
+                              toCamelFieldKey(event.currentTarget.value),
+                              fieldIndex
+                            );
+
+                            if (nextFieldKey === currentFieldKey) {
+                              return;
+                            }
+
+                            updateConfig((current) => ({
+                              ...current,
+                              fieldsJson: current.fieldsJson.map((item, itemIndex) =>
+                                itemIndex === fieldIndex
+                                  ? { ...item, fieldKey: nextFieldKey }
+                                  : item
+                              ),
+                              rulesJson: current.rulesJson.map((rule) => ({
+                                ...rule,
+                                parentFieldKey:
+                                  rule.parentFieldKey === currentFieldKey
+                                    ? nextFieldKey
+                                    : rule.parentFieldKey,
+                                targetFieldKey:
+                                  rule.targetFieldKey === currentFieldKey
+                                    ? nextFieldKey
+                                    : rule.targetFieldKey,
+                              })),
+                            }));
+
+                            if (newFieldKeys.includes(currentFieldKey)) {
                               setNewFieldKeys((current) =>
                                 current.map((key) => (key === currentFieldKey ? nextFieldKey : key))
                               );
                             }
+
+                            setExpandedFieldKeys((current) =>
+                              current.map((key) => (key === currentFieldKey ? nextFieldKey : key))
+                            );
                           }}
                           className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                         />
@@ -795,16 +1068,44 @@ export default function AdminPage() {
                         <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
                           Base Price
                           <input
-                            type="number"
-                            value={field.basePrice}
+                            type="text"
+                            inputMode="decimal"
+                            value={basePriceDrafts[field.fieldKey] ?? String(field.basePrice)}
                             onChange={(event) => {
-                              const value = Number(event.target.value) || 0;
+                              const nextValue = event.target.value;
+                              setBasePriceDrafts((current) => ({
+                                ...current,
+                                [field.fieldKey]: nextValue,
+                              }));
+
+                              if (nextValue === "") {
+                                return;
+                              }
+
+                              const value = Number(nextValue) || 0;
                               updateConfig((current) => ({
                                 ...current,
                                 fieldsJson: current.fieldsJson.map((item, itemIndex) =>
                                   itemIndex === fieldIndex ? { ...item, basePrice: value } : item
                                 ),
                               }));
+                            }}
+                            onBlur={(event) => {
+                              const value = event.currentTarget.value === ""
+                                ? 0
+                                : Number(event.currentTarget.value) || 0;
+
+                              updateConfig((current) => ({
+                                ...current,
+                                fieldsJson: current.fieldsJson.map((item, itemIndex) =>
+                                  itemIndex === fieldIndex ? { ...item, basePrice: value } : item
+                                ),
+                              }));
+                              setBasePriceDrafts((current) => {
+                                const next = { ...current };
+                                delete next[field.fieldKey];
+                                return next;
+                              });
                             }}
                             className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                           />
@@ -1088,9 +1389,10 @@ export default function AdminPage() {
                               ),
                             }));
                           }}
-                          className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
                         >
-                          Add Condition
+                          <Plus className="h-3.5 w-3.5" />
+                          <span>Add Condition</span>
                         </button>
                       </div>
 
@@ -1208,9 +1510,10 @@ export default function AdminPage() {
                                 ),
                               }));
                             }}
-                            className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+                            className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
                           >
-                            Add Option
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>Add Option</span>
                           </button>
                         </div>
 
@@ -1218,7 +1521,7 @@ export default function AdminPage() {
                           {(field.options ?? []).map((option, optionIndex) => (
                             <div
                               key={`${field.fieldKey}-${optionIndex}`}
-                              className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 md:grid-cols-2 xl:grid-cols-6"
+                              className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 md:grid-cols-2 xl:grid-cols-5"
                             >
                               <label className="min-w-0 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
                                 Label
@@ -1263,40 +1566,41 @@ export default function AdminPage() {
                                   className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                                 />
                               </label>
-                              <label className="min-w-0 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+                              <div className="min-w-0 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
                                 <span className="flex items-center gap-1.5">
-                                  <span>File Name</span>
+                                  <span>3D Model</span>
                                   <span
                                     className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 bg-slate-50 text-[10px] font-bold normal-case tracking-normal text-slate-500"
-                                    aria-label="File name guidance"
-                                    title="Enter the exact file name uploaded to S3. Only files already available in the configured S3 asset location can be loaded in the preview."
+                                    aria-label="Model upload guidance"
+                                    title="Upload a .glb file for this option. The stored URL is used by the configurator preview."
                                   >
                                     i
                                   </span>
                                 </span>
-                                <input
-                                  value={option.modelFileName ?? ""}
-                                  onChange={(event) => {
-                                    const value = event.target.value;
-                                    updateConfig((current) => ({
-                                      ...current,
-                                      fieldsJson: current.fieldsJson.map((item, itemIndex) =>
-                                        itemIndex === fieldIndex
-                                          ? {
-                                              ...item,
-                                              options: (item.options ?? []).map((entry, entryIndex) =>
-                                                entryIndex === optionIndex
-                                                  ? { ...entry, modelFileName: value }
-                                                  : entry
-                                              ),
-                                            }
-                                          : item
-                                      ),
-                                    }));
-                                  }}
-                                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                                />
-                              </label>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openModelUploadModal({
+                                      fieldKey: field.fieldKey,
+                                      fieldLabel: field.label,
+                                      optionIndex,
+                                      optionLabel: option.label,
+                                    })
+                                  }
+                                  disabled={!option.label.trim()}
+                                  title={
+                                    option.label.trim()
+                                      ? option.modelFileName || "Upload a .glb model for this option"
+                                      : "Add an option label first"
+                                  }
+                                  className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold normal-case tracking-normal text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <Upload className="h-3.5 w-3.5 shrink-0" />
+                                  <span className="truncate">
+                                    {option.modelFileName ? "Replace Model" : "Upload GLB"}
+                                  </span>
+                                </button>
+                              </div>
                               <label className="min-w-0 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
                                 Price
                                 <input
@@ -1321,33 +1625,6 @@ export default function AdminPage() {
                                     }));
                                   }}
                                   placeholder="Price"
-                                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                                />
-                              </label>
-                              <label className="min-w-0 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
-                                Sort Order
-                                <input
-                                  type="number"
-                                  value={option.sortOrder}
-                                  onChange={(event) => {
-                                    const value = Number(event.target.value) || 0;
-                                    updateConfig((current) => ({
-                                      ...current,
-                                      fieldsJson: current.fieldsJson.map((item, itemIndex) =>
-                                        itemIndex === fieldIndex
-                                          ? {
-                                              ...item,
-                                              options: (item.options ?? []).map((entry, entryIndex) =>
-                                                entryIndex === optionIndex
-                                                  ? { ...entry, sortOrder: value }
-                                                  : entry
-                                              ),
-                                            }
-                                          : item
-                                      ),
-                                    }));
-                                  }}
-                                  placeholder="Sort order"
                                   className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                                 />
                               </label>
@@ -1414,36 +1691,233 @@ export default function AdminPage() {
             </div>
             </div>
 
-            <div className="space-y-6">
-            <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
-              <h2 className="text-lg font-semibold text-slate-900">Advanced Rules</h2>
-              <p className="mt-2 text-sm text-slate-500">
-                Use this JSON editor for dependent defaults such as length-to-dimension mappings.
-              </p>
-              <textarea
-                value={rulesDraft}
-                onChange={(event) => {
-                  setRulesDraft(event.target.value);
-                  setSuccessMessage(null);
-                }}
-                className="mt-4 min-h-[640px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 font-mono text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                spellCheck={false}
-              />
-            </div>
-
-            <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
-              <h2 className="text-lg font-semibold text-slate-900">How It Maps</h2>
-              <div className="mt-3 space-y-3 text-sm text-slate-600">
-                <p>Fields attach to tabs through `field.tabKey === tab.tabKey`.</p>
-                <p>Use `visibleWhen` for field visibility by body type or other field selections.</p>
-                <p>Use `rulesJson` for dependent defaults where one field selection drives another field value.</p>
-                <p>Use `isHidden` instead of deleting tabs, fields, or options.</p>
-              </div>
-            </div>
-            </div>
           </div>
         </section>
       </div>
+
+      {toastMessage ? (
+        <div className="fixed bottom-6 right-6 z-[60] rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-700 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+          {toastMessage}
+        </div>
+      ) : null}
+
+      {modelUploadTarget ? (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/55 p-4"
+          onClick={closeModelUploadModal}
+        >
+          <div
+            className="w-full max-w-lg rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_24px_64px_rgba(15,23,42,0.24)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Upload 3D Model</h2>
+                <p className="text-sm text-slate-500">
+                  {modelUploadTarget.fieldLabel} · {modelUploadTarget.optionLabel}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeModelUploadModal}
+                disabled={isUploadingModel}
+                aria-label="Close model upload"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <input
+              ref={modelFileInputRef}
+              type="file"
+              accept=".glb,model/gltf-binary"
+              className="hidden"
+              onChange={(event) => {
+                selectModelFile(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={() => modelFileInputRef.current?.click()}
+              disabled={isUploadingModel}
+              onDragOver={(event) => {
+                event.preventDefault();
+                if (!isUploadingModel) {
+                  setIsModelDragActive(true);
+                }
+              }}
+              onDragLeave={() => setIsModelDragActive(false)}
+              onDrop={(event) => {
+                event.preventDefault();
+                setIsModelDragActive(false);
+                if (!isUploadingModel) {
+                  selectModelFile(event.dataTransfer.files?.[0]);
+                }
+              }}
+              className={`mt-5 flex w-full flex-col items-center justify-center gap-2 rounded-[20px] border-2 border-dashed px-6 py-10 text-center transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                isModelDragActive
+                  ? "border-blue-400 bg-blue-50"
+                  : "border-slate-300 bg-slate-50 hover:border-blue-300 hover:bg-blue-50/50"
+              }`}
+            >
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-blue-100 bg-white text-blue-600 shadow-sm">
+                {isUploadingModel ? (
+                  <LoaderCircle className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Upload className="h-5 w-5" />
+                )}
+              </span>
+              <span className="text-sm font-semibold text-slate-800">
+                {isUploadingModel ? "Uploading model..." : "Drag and drop a .glb file"}
+              </span>
+              <span className="text-xs text-slate-500">
+                or click to browse. Max size 100MB.
+              </span>
+            </button>
+
+            {modelUploadFile ? (
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-900">
+                    {modelUploadFile.name}
+                  </p>
+                  <p className="text-xs text-slate-500">{formatFileSize(modelUploadFile.size)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModelUploadFile(null)}
+                  disabled={isUploadingModel}
+                  aria-label="Remove selected file"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : null}
+
+            {modelUploadError ? (
+              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {modelUploadError}
+              </div>
+            ) : null}
+
+            <div className="mt-5 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeModelUploadModal}
+                disabled={isUploadingModel}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleUploadModel()}
+                disabled={isUploadingModel || !modelUploadFile}
+                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isUploadingModel ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                <span>{isUploadingModel ? "Uploading..." : "Upload & Save"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isFieldOrderModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4"
+          onClick={() => {
+            if (!isSaving) {
+              setIsFieldOrderModalOpen(false);
+              setDraggedFieldKey(null);
+            }
+          }}
+        >
+          <div
+            className="flex max-h-[92vh] w-full max-w-xl flex-col rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_24px_64px_rgba(15,23,42,0.24)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Reorder Fields</h2>
+                <p className="text-sm text-slate-500">Drag fields into the order shown in the configurator.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFieldOrderModalOpen(false);
+                  setDraggedFieldKey(null);
+                }}
+                disabled={isSaving}
+                aria-label="Close reorder fields"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+              {reorderedFields.map((field) => (
+                <div
+                  key={field.fieldKey}
+                  draggable={!isSaving}
+                  onDragStart={() => setDraggedFieldKey(field.fieldKey)}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (draggedFieldKey) {
+                      moveReorderedField(draggedFieldKey, field.fieldKey);
+                    }
+                  }}
+                  onDragEnd={() => setDraggedFieldKey(null)}
+                  className={`flex cursor-grab items-center gap-3 rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm transition active:cursor-grabbing ${
+                    draggedFieldKey === field.fieldKey
+                      ? "border-blue-300 bg-blue-50 text-blue-800"
+                      : "border-slate-200 hover:border-blue-200"
+                  }`}
+                >
+                  <GripVertical className="h-4 w-4 shrink-0 text-slate-400" />
+                  <span className="min-w-0 flex-1 truncate">{field.label.trim() || "Untitled Field"}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFieldOrderModalOpen(false);
+                  setDraggedFieldKey(null);
+                }}
+                disabled={isSaving}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSaveFieldOrder()}
+                disabled={isSaving}
+                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSaving ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                <span>{isSaving ? "Saving..." : "Save Order"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isTabModalOpen ? (
         <div
