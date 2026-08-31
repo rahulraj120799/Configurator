@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Component,
   ReactNode,
   Suspense,
   useEffect,
@@ -57,8 +58,6 @@ type SelectFieldProps = {
 type SelectIconTone = "blue" | "cyan" | "emerald" | "amber" | "violet" | "rose";
 
 const BODY_TYPE_FIELD_KEY = "bodyType";
-const modelBaseUrl =
-  process.env.NEXT_PUBLIC_S3_DOMAIN_URL?.replace(/\/$/, "") ?? "";
 
 const sortByOrder = <T extends { sortOrder: number }>(items: T[]) =>
   [...items].sort((left, right) => left.sortOrder - right.sortOrder);
@@ -321,66 +320,23 @@ const applyDefaultRules = (
   };
 };
 
-function SelectField({
-  label,
-  value,
-  placeholder,
-  options,
-  onChange,
-  icon,
-  helperText,
-  disabled,
-}: SelectFieldProps) {
-  const selectId = useId();
-  const iconToneClass = selectIconToneClasses.blue;
+class ModelErrorBoundary extends Component<
+  { children: ReactNode; onError: () => void },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
 
-  return (
-    <div
-      className={`grid grid-cols-[64px_1fr] gap-3 rounded-2xl border p-3.5 ${selectFieldClasses.card}`}
-    >
-      <span
-        className={`inline-flex h-full min-h-[92px] items-center justify-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] ${iconToneClass.rail}`}
-      >
-        <span
-          className={`relative inline-flex h-11 w-11 items-center justify-center rounded-xl border [&_svg]:h-[20px] [&_svg]:w-[20px] ${iconToneClass.badge}`}
-        >
-          {icon}
-        </span>
-      </span>
-      <div className="flex flex-col justify-center">
-        <label
-          htmlFor={selectId}
-          className={`text-sm font-semibold tracking-[0.01em] ${selectFieldClasses.label}`}
-        >
-          {label}
-        </label>
-        <div className="relative mt-2">
-          <select
-            id={selectId}
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            disabled={disabled}
-            className={`h-12 w-full appearance-none rounded-xl border px-4 pr-11 text-sm font-medium text-slate-900 shadow-[0_4px_14px_rgba(15,23,42,0.04)] transition-all duration-200 disabled:cursor-not-allowed disabled:bg-slate-100/80 disabled:text-slate-500 focus:outline-none focus:ring-4 ${selectFieldClasses.input}`}
-          >
-            <option value="">{placeholder}</option>
-            {options.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <span
-            className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border p-1 ${selectFieldClasses.chevron}`}
-          >
-            <ChevronDown className="h-3.5 w-3.5" />
-          </span>
-        </div>
-      </div>
-      {helperText ? (
-        <p className="col-span-2 mt-0.5 text-xs text-slate-500">{helperText}</p>
-      ) : null}
-    </div>
-  );
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch() {
+    this.props.onError();
+  }
+
+  render() {
+    return this.state.hasError ? null : this.props.children;
+  }
 }
 
 function PreviewModel({
@@ -389,8 +345,7 @@ function PreviewModel({
 }: {
   modelPath: string;
   onReady: () => void;
-}) {
-  const { scene } = useGLTF(modelPath);
+}) {  const { scene } = useGLTF(modelPath);
   const model = useMemo(() => scene.clone(), [scene]);
 
   useEffect(() => {
@@ -423,9 +378,11 @@ function PreviewModel({
 function PreviewScene({
   modelPath,
   onModelReady,
+  onModelError,
 }: {
   modelPath: string;
   onModelReady: () => void;
+  onModelError: () => void;
 }) {
   return (
     <Canvas
@@ -453,7 +410,9 @@ function PreviewScene({
       </mesh>
 
       <Suspense fallback={null}>
-        <PreviewModel modelPath={modelPath} onReady={onModelReady} />
+        <ModelErrorBoundary key={modelPath} onError={onModelError}>
+          <PreviewModel modelPath={modelPath} onReady={onModelReady} />
+        </ModelErrorBoundary>
       </Suspense>
 
       <OrbitControls
@@ -482,13 +441,15 @@ export default function ConfigurePage() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(true);
   const [isCurrentConfigOpen, setIsCurrentConfigOpen] = useState(true);
   const [isQuoteViewOpen, setIsQuoteViewOpen] = useState(false);
+  const [activeModelFieldKey, setActiveModelFieldKey] = useState<string | null>(
+    null
+  );
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [quoteSnapshot, setQuoteSnapshot] = useState<{
     bodyType: string;
     totalPrice: number;
     groups: QuoteGroup[];
     recipientEmail: string;
-    emailSent: boolean;
-    emailMessage?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -502,7 +463,22 @@ export default function ConfigurePage() {
           throw new Error("Failed to load configurator schema");
         }
 
-        const nextSchema = (await response.json()) as AdminConfigState;
+        const payload = (await response
+          .json()
+          .catch(() => null)) as AdminConfigState | null;
+
+        if (
+          !payload ||
+          !Array.isArray(payload.tabsJson) ||
+          !Array.isArray(payload.fieldsJson)
+        ) {
+          throw new Error("Configurator schema response was empty or invalid");
+        }
+
+        const nextSchema: AdminConfigState = {
+          ...payload,
+          rulesJson: Array.isArray(payload.rulesJson) ? payload.rulesJson : [],
+        };
         setSchema(nextSchema);
 
         const visibleTabs = sortByOrder(nextSchema.tabsJson).filter(
@@ -625,68 +601,89 @@ export default function ConfigurePage() {
     });
   }, [schema, selections, visibleTabs]);
 
-  const selectedModelFileName = useMemo(() => {
+  const resolvedModelPath = useMemo(() => {
     if (!schema) {
       return null;
     }
 
-    const visibleFields = sortByOrder(schema.fieldsJson).filter(
-      (field) => !field.isHidden && isFieldVisible(field, selections)
-    );
-
-    for (const field of visibleFields) {
-      if (field.type !== "select") {
-        continue;
+    const modelUrlForField = (field: AdminFieldConfig) => {
+      if (
+        field.type !== "select" ||
+        field.isHidden ||
+        !isFieldVisible(field, selections)
+      ) {
+        return null;
       }
 
       const selectedValue = normalizeValue(selections[field.fieldKey]);
       if (!selectedValue) {
-        continue;
+        return null;
       }
 
       const selectedOption = sortByOrder(field.options ?? []).find(
         (option) =>
           !option.isHidden && hasComparableMatch(option.value, selectedValue)
       );
-      const modelFileName = selectedOption?.modelFileName?.trim();
 
-      if (modelFileName) {
-        return modelFileName;
+      const modelUrl = selectedOption?.modelFileName?.trim();
+
+      return modelUrl && /^(https?:\/\/|\/)/i.test(modelUrl) ? modelUrl : null;
+    };
+
+    const activeField = activeModelFieldKey
+      ? schema.fieldsJson.find((field) => field.fieldKey === activeModelFieldKey)
+      : undefined;
+
+    if (activeField) {
+      const activeModelUrl = modelUrlForField(activeField);
+      if (activeModelUrl) {
+        return activeModelUrl;
+      }
+    }
+
+    for (const field of sortByOrder(schema.fieldsJson)) {
+      const modelUrl = modelUrlForField(field);
+      if (modelUrl) {
+        return modelUrl;
       }
     }
 
     return null;
-  }, [schema, selections]);
-
-  const resolvedModelPath = useMemo(() => {
-    if (!selectedModelFileName) {
-      return null;
-    }
-
-    if (/^https?:\/\//i.test(selectedModelFileName)) {
-      return selectedModelFileName;
-    }
-
-    if (modelBaseUrl) {
-      return `${modelBaseUrl}/${selectedModelFileName.replace(/^\/+/, "")}`;
-    }
-
-    return `/${selectedModelFileName.replace(/^\/+/, "")}`;
-  }, [selectedModelFileName]);
+  }, [activeModelFieldKey, schema, selections]);
 
   useEffect(() => {
     if (!resolvedModelPath) {
       setIsPreviewLoading(false);
+      setPreviewError(null);
       return;
     }
 
     setIsPreviewLoading(true);
-    useGLTF.preload(resolvedModelPath);
+    setPreviewError(null);
+
+    try {
+      useGLTF.preload(resolvedModelPath);
+    } catch {
+      setIsPreviewLoading(false);
+      setPreviewError("Unable to load the 3D model for this option.");
+    }
   }, [resolvedModelPath]);
 
   const handleFieldChange = (field: AdminFieldConfig, nextValue: string) => {
     if (!schema) {
       return;
+    }
+
+    if (field.type === "select") {
+      const selectedOption = (field.options ?? []).find((option) =>
+        hasComparableMatch(option.value, nextValue)
+      );
+
+      if (selectedOption?.modelFileName?.trim()) {
+        setActiveModelFieldKey(field.fieldKey);
+      } else if (activeModelFieldKey === field.fieldKey) {
+        setActiveModelFieldKey(null);
+      }
     }
 
     setSelections((current) => {
@@ -716,6 +713,7 @@ export default function ConfigurePage() {
     const resolved = applyDefaultRules(schema, initialSelections, {});
     setSelections(resolved.selections);
     setManualOverrides(resolved.overrides);
+    setActiveModelFieldKey(null);
     setSavedMessage(null);
     setError(null);
   };
@@ -748,12 +746,10 @@ export default function ConfigurePage() {
         }),
       });
 
-      const responseBody = (await response.json()) as {
+      const responseBody = ((await response.json().catch(() => null)) ?? {}) as {
         error?: string;
         message?: string;
         totalPrice?: number;
-        emailSent?: boolean;
-        emailMessage?: string;
       };
 
       if (!response.ok) {
@@ -769,20 +765,15 @@ export default function ConfigurePage() {
         totalPrice: responseBody.totalPrice ?? totalPrice,
         groups: quoteGroups,
         recipientEmail: user.email,
-        emailSent: responseBody.emailSent === true,
-        emailMessage: responseBody.emailMessage,
       });
-      setSavedMessage(
-        responseBody.emailSent
-          ? "Quote created and emailed successfully"
-          : "Quote created, but email delivery failed"
-      );
+      setSavedMessage("Quote created and emailed successfully");
       setIsQuoteViewOpen(true);
 
       const initialSelections = buildInitialSelections(schema);
       const resolved = applyDefaultRules(schema, initialSelections, {});
       setSelections(resolved.selections);
       setManualOverrides(resolved.overrides);
+      setActiveModelFieldKey(null);
     } catch (saveError) {
       setError(
         saveError instanceof Error
@@ -796,12 +787,46 @@ export default function ConfigurePage() {
 
   if (isLoadingSchema) {
     return (
-      <ConfiguratorShell activeNav="configure">
-        <div className="mx-auto max-w-6xl px-8 py-8">
-          <div className="rounded-xl border border-gray-200 bg-white p-8 shadow-md">
-            <p className="text-sm text-gray-600">
-              Loading configurator schema...
+      <ConfiguratorShell
+        activeNav="configure"
+        sidebarContent={
+          <div className="rounded-[20px] border border-white/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.08))] px-4 py-4 shadow-xl backdrop-blur-xl">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-blue-100">
+                <LoaderCircle className="h-5 w-5 animate-spin" />
+              </span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-100/80">
+                  Configurator
+                </p>
+                <p className="mt-1 text-xl font-bold text-white">
+                  Loading setup
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-blue-100/75">
+              Preparing tabs, fields, options, and pricing.
             </p>
+          </div>
+        }
+      >
+        <div className="mx-auto max-w-6xl px-8 py-8">
+          <div className="flex min-h-[420px] items-center justify-center rounded-[28px] border border-slate-200 bg-white p-8 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
+            <div className="flex max-w-md flex-col items-center text-center">
+              <span className="inline-flex h-16 w-16 items-center justify-center rounded-full border border-blue-100 bg-blue-50 text-blue-700 shadow-sm">
+                <LoaderCircle className="h-8 w-8 animate-spin" />
+              </span>
+              <h1 className="mt-5 text-2xl font-semibold tracking-tight text-slate-900">
+                Loading configurator
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Fetching the latest configuration setup. This can take a moment
+                if the backend is waking up or the network is slow.
+              </p>
+              <div className="mt-6 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full w-1/2 animate-pulse rounded-full bg-blue-600" />
+              </div>
+            </div>
           </div>
         </div>
       </ConfiguratorShell>
@@ -830,8 +855,7 @@ export default function ConfigurePage() {
           totalPrice={quoteSnapshot.totalPrice}
           groups={quoteSnapshot.groups}
           recipientEmail={quoteSnapshot.recipientEmail}
-          emailSent={quoteSnapshot.emailSent}
-          emailMessage={quoteSnapshot.emailMessage}
+          successMessage="Quote created and emailed successfully"
           onBack={() => setIsQuoteViewOpen(false)}
         />
       </ConfiguratorShell>
@@ -1042,6 +1066,12 @@ export default function ConfigurePage() {
                   <PreviewScene
                     modelPath={resolvedModelPath}
                     onModelReady={() => setIsPreviewLoading(false)}
+                    onModelError={() => {
+                      setIsPreviewLoading(false);
+                      setPreviewError(
+                        "Unable to load the 3D model for this option."
+                      );
+                    }}
                   />
                 ) : null}
                 <div className="absolute left-4 top-4 z-10 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm">
@@ -1054,15 +1084,29 @@ export default function ConfigurePage() {
                   <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/82 backdrop-blur-sm">
                     <div className="max-w-xs rounded-2xl border border-slate-200 bg-white px-6 py-5 text-center shadow-lg">
                       <p className="text-sm font-semibold text-slate-900">
-                        Select body type to preview
+                        No 3D model to preview yet
                       </p>
                       <p className="mt-2 text-sm text-slate-500">
-                        Choose Dump Body or Service Body to load the 3D model.
+                        Select an option that has a 3D model attached to load the
+                        preview.
                       </p>
                     </div>
                   </div>
                 ) : null}
-                {resolvedModelPath && isPreviewLoading ? (
+                {resolvedModelPath && previewError ? (
+                  <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/85 backdrop-blur-sm">
+                    <div className="max-w-xs rounded-2xl border border-amber-200 bg-amber-50 px-6 py-5 text-center shadow-lg">
+                      <p className="text-sm font-semibold text-amber-900">
+                        3D preview unavailable
+                      </p>
+                      <p className="mt-2 text-sm text-amber-800/80">
+                        {previewError} You can continue configuring and request a
+                        quote.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+                {resolvedModelPath && isPreviewLoading && !previewError ? (
                   <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/70 backdrop-blur-sm">
                     <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold tracking-[0.08em] text-slate-600 shadow-sm">
                       Loading 3D preview...

@@ -613,13 +613,14 @@ export default function AdminPage() {
 
       const formData = new FormData();
       formData.append("file", modelUploadFile);
+      formData.append("fieldKey", modelUploadTarget.fieldKey);
+      formData.append("optionValue", optionValue);
 
-      const response = await fetch(
-        `/api/admin/config/fields/${encodeURIComponent(
-          modelUploadTarget.fieldKey
-        )}/options/${encodeURIComponent(optionValue)}/model`,
-        { method: "POST", body: formData }
-      );
+      const response = await fetch("/api/admin/config/model", {
+        method: "POST",
+        body: formData,
+        headers: { Accept: "application/json" },
+      });
 
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as
@@ -645,27 +646,7 @@ export default function AdminPage() {
 
   if (isLoading) {
     return (
-      <ConfiguratorShell
-        activeNav="admin"
-        sidebarContent={
-          <div className="rounded-[20px] border border-white/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.08))] px-4 py-4 shadow-xl backdrop-blur-xl">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-blue-100">
-                <LoaderCircle className="h-5 w-5 animate-spin" />
-              </span>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-100/80">
-                  Admin Workspace
-                </p>
-                <p className="mt-1 text-xl font-bold text-white">Loading catalog</p>
-              </div>
-            </div>
-            <p className="mt-3 text-xs text-blue-100/75">
-              Preparing tabs, fields, options, and conditions.
-            </p>
-          </div>
-        }
-      >
+      <ConfiguratorShell activeNav="admin">
         <div className="mx-auto max-w-7xl px-8 py-8">
           <div className="flex min-h-[420px] items-center justify-center rounded-[28px] border border-slate-200 bg-white p-8 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
             <div className="flex max-w-md flex-col items-center text-center">

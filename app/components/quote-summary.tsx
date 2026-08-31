@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Check, CircleAlert, X } from "lucide-react";
+import { ArrowLeft, Check, X } from "lucide-react";
 
 export type QuoteLineItem = {
   fieldKey: string;
@@ -24,8 +24,7 @@ export type QuoteSummaryProps = {
   recipientEmail?: string;
   createdAt?: string;
   status?: string;
-  emailSent?: boolean;
-  emailMessage?: string;
+  successMessage?: string;
   onBack?: () => void;
   onClose?: () => void;
 };
@@ -45,8 +44,7 @@ export function QuoteSummary({
   recipientEmail,
   createdAt,
   status,
-  emailSent,
-  emailMessage,
+  successMessage,
   onBack,
   onClose,
 }: QuoteSummaryProps) {
@@ -87,51 +85,23 @@ export function QuoteSummary({
         ) : null}
       </div>
 
-      {typeof emailSent === "boolean" ? (
-        <div
-          className={`mb-8 flex items-center gap-4 rounded-2xl border px-6 py-5 shadow-sm ${
-            emailSent === false
-              ? "border-amber-200 bg-amber-50"
-              : "border-emerald-200 bg-emerald-50"
-          }`}
-        >
-        <span
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white ${
-            emailSent === false
-              ? "bg-amber-500 shadow-[0_8px_18px_rgba(245,158,11,0.3)]"
-              : "bg-emerald-500 shadow-[0_8px_18px_rgba(16,185,129,0.35)]"
-          }`}
-        >
-          {emailSent === false ? (
-            <CircleAlert className="h-5 w-5" />
-          ) : (
+      {successMessage ? (
+        <div className="mb-8 flex items-center gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-5 shadow-sm">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-[0_8px_18px_rgba(16,185,129,0.35)]">
             <Check className="h-5 w-5" />
-          )}
-        </span>
-        <div>
-          <p
-            className={`text-sm font-semibold ${
-              emailSent === false ? "text-amber-800" : "text-emerald-800"
-            }`}
-          >
-            {emailSent === false
-              ? "Quote created, but email delivery failed"
-              : "Quote created and emailed successfully"}
-          </p>
-          <p
-            className={`text-xs ${
-              emailSent === false ? "text-amber-700" : "text-emerald-700"
-            }`}
-          >
-            {emailSent === false
-              ? emailMessage ?? "You can still review your quote below."
-              : recipientEmail
-              ? `A copy was sent to ${recipientEmail}.`
-              : bodyType
-              ? `Your ${bodyType} configuration is ready to review.`
-              : "Your configuration is ready to review."}
-          </p>
-        </div>
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-emerald-800">
+              {successMessage}
+            </p>
+            <p className="text-xs text-emerald-700">
+              {recipientEmail
+                ? `A copy was sent to ${recipientEmail}.`
+                : bodyType
+                ? `Your ${bodyType} configuration is ready to review.`
+                : "Your configuration is ready to review."}
+            </p>
+          </div>
         </div>
       ) : quoteNumber ? (
         <div className="mb-8 grid gap-4 border-y border-gray-200 bg-white px-1 py-5 sm:grid-cols-2 lg:grid-cols-4">
