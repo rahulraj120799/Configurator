@@ -108,12 +108,9 @@ export function ConfiguratorShell({
               <Zap className="h-6 w-6 fill-current text-orange-200" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg font-bold leading-tight tracking-tight">
-                {APP_NAME}
-              </h1>
-              <p className="text-xs leading-snug text-blue-100/80 break-words">
+              <h1 className="text-lg font-bold leading-tight tracking-tight break-words">
                 {user.fullName ? `${user.fullName} Configurator` : "Configurator"}
-              </p>
+              </h1>
             </div>
           </div>
 
