@@ -135,6 +135,18 @@ const modelUploadUrl = (fieldKey: string, optionValue: string) =>
       )}/options/${encodeURIComponent(optionValue)}/model`
     : "/api/admin/config/model";
 
+// Exposed to the browser by design: the direct upload bypasses the server-side proxy.
+const cpqUploadAuthHeader = (): Record<string, string> => {
+  const username = process.env.NEXT_PUBLIC_CPQ_EMPLOYEE_USERNAME;
+  const password = process.env.NEXT_PUBLIC_CPQ_EMPLOYEE_PASSWORD;
+
+  if (!cpqApiBaseUrl || !username || !password) {
+    return {};
+  }
+
+  return { Authorization: `Basic ${btoa(`${username}:${password}`)}` };
+};
+
 const formatFileSize = (bytes: number) => {
   if (bytes < 1024) {
     return `${bytes} B`;
@@ -635,7 +647,7 @@ export default function AdminPage() {
         {
           method: "POST",
           body: formData,
-          headers: { Accept: "application/json" },
+          headers: { Accept: "application/json", ...cpqUploadAuthHeader() },
         }
       );
 
@@ -648,6 +660,8 @@ export default function AdminPage() {
             body?.error ??
             (response.status === 413
               ? "The upload was rejected as too large by the server."
+              : response.status === 401
+              ? "The upload was rejected as unauthorized. Check the CPQ credentials."
               : "Failed to upload the model file")
         );
       }
