@@ -124,6 +124,17 @@ const defaultCondition = (fieldKey = "bodyType", value = ""): AdminFieldConditio
 
 const MAX_MODEL_BYTES = 100 * 1024 * 1024;
 
+// Vercel caps serverless request bodies at 4.5MB, so large models must skip the Next proxy route.
+const cpqApiBaseUrl =
+  process.env.NEXT_PUBLIC_CPQ_API_BASE_URL?.replace(/\/$/, "") ?? "";
+
+const modelUploadUrl = (fieldKey: string, optionValue: string) =>
+  cpqApiBaseUrl
+    ? `${cpqApiBaseUrl}/api/admin/catalog/fields/${encodeURIComponent(
+        fieldKey
+      )}/options/${encodeURIComponent(optionValue)}/model`
+    : "/api/admin/config/model";
+
 const formatFileSize = (bytes: number) => {
   if (bytes < 1024) {
     return `${bytes} B`;
@@ -613,20 +624,32 @@ export default function AdminPage() {
 
       const formData = new FormData();
       formData.append("file", modelUploadFile);
-      formData.append("fieldKey", modelUploadTarget.fieldKey);
-      formData.append("optionValue", optionValue);
 
-      const response = await fetch("/api/admin/config/model", {
-        method: "POST",
-        body: formData,
-        headers: { Accept: "application/json" },
-      });
+      if (!cpqApiBaseUrl) {
+        formData.append("fieldKey", modelUploadTarget.fieldKey);
+        formData.append("optionValue", optionValue);
+      }
+
+      const response = await fetch(
+        modelUploadUrl(modelUploadTarget.fieldKey, optionValue),
+        {
+          method: "POST",
+          body: formData,
+          headers: { Accept: "application/json" },
+        }
+      );
 
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as
           | { message?: string; error?: string }
           | null;
-        throw new Error(body?.message ?? body?.error ?? "Failed to upload the model file");
+        throw new Error(
+          body?.message ??
+            body?.error ??
+            (response.status === 413
+              ? "The upload was rejected as too large by the server."
+              : "Failed to upload the model file")
+        );
       }
 
       const saved = (await response.json()) as AdminConfigState;

@@ -70,16 +70,18 @@ const comparableStringForms = (value: unknown) => {
     return [] as string[];
   }
 
+  // Whole-string variants only; per-word tokens would make "Dump Body" match "Service Body".
   const snake = source.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
   const compact = source.replace(/[^a-z0-9]+/g, "");
-  const tokens = snake.split("_").filter(Boolean);
 
-  const forms = new Set<string>([source, snake, compact]);
-  for (const token of tokens) {
-    forms.add(token);
-  }
+  return [...new Set([source, snake, compact])].filter(Boolean);
+};
 
-  return [...forms].filter(Boolean);
+const comparableFormsWithTokens = (value: unknown) => {
+  const wholeForms = comparableStringForms(value);
+  const tokens = (wholeForms[1] ?? "").split("_").filter(Boolean);
+
+  return [...new Set([...wholeForms, ...tokens])];
 };
 
 const hasComparableMatch = (left: unknown, right: unknown) => {
@@ -87,6 +89,24 @@ const hasComparableMatch = (left: unknown, right: unknown) => {
   const rightForms = comparableStringForms(right);
 
   return leftForms.some((form) => rightForms.includes(form));
+};
+
+/** Condition values are often shorthand ("dump" for "Dump Body"), so one side may match a word of the other. */
+const matchesConditionValue = (actual: unknown, expected: unknown) => {
+  const actualWhole = comparableStringForms(actual);
+  const expectedWhole = comparableStringForms(expected);
+
+  if (!actualWhole.length || !expectedWhole.length) {
+    return false;
+  }
+
+  const actualWithTokens = comparableFormsWithTokens(actual);
+  const expectedWithTokens = comparableFormsWithTokens(expected);
+
+  return (
+    expectedWhole.some((form) => actualWithTokens.includes(form)) ||
+    actualWhole.some((form) => expectedWithTokens.includes(form))
+  );
 };
 
 const formatCurrency = (value: number): string =>
@@ -190,7 +210,7 @@ const isConditionMatch = (
 ) => {
   if (Array.isArray(expected)) {
     const arrayMatches = expected.some((entry) =>
-      hasComparableMatch(actual, entry)
+      matchesConditionValue(actual, entry)
     );
     if (operator === "in") {
       return arrayMatches;
@@ -200,7 +220,7 @@ const isConditionMatch = (
     }
   }
 
-  const strictOrComparableMatch = hasComparableMatch(actual, expected);
+  const strictOrComparableMatch = matchesConditionValue(actual, expected);
   if (operator === "eq") {
     return strictOrComparableMatch;
   }
@@ -345,7 +365,8 @@ function PreviewModel({
 }: {
   modelPath: string;
   onReady: () => void;
-}) {  const { scene } = useGLTF(modelPath);
+}) {
+  const { scene } = useGLTF(modelPath);
   const model = useMemo(() => scene.clone(), [scene]);
 
   useEffect(() => {
@@ -466,7 +487,7 @@ export default function ConfigurePage() {
         const payload = (await response
           .json()
           .catch(() => null)) as AdminConfigState | null;
-
+        console.log("payload", payload);
         if (
           !payload ||
           !Array.isArray(payload.tabsJson) ||
@@ -631,7 +652,9 @@ export default function ConfigurePage() {
     };
 
     const activeField = activeModelFieldKey
-      ? schema.fieldsJson.find((field) => field.fieldKey === activeModelFieldKey)
+      ? schema.fieldsJson.find(
+          (field) => field.fieldKey === activeModelFieldKey
+        )
       : undefined;
 
     if (activeField) {
@@ -746,7 +769,8 @@ export default function ConfigurePage() {
         }),
       });
 
-      const responseBody = ((await response.json().catch(() => null)) ?? {}) as {
+      const responseBody = ((await response.json().catch(() => null)) ??
+        {}) as {
         error?: string;
         message?: string;
         totalPrice?: number;
@@ -1087,8 +1111,8 @@ export default function ConfigurePage() {
                         No 3D model to preview yet
                       </p>
                       <p className="mt-2 text-sm text-slate-500">
-                        Select an option that has a 3D model attached to load the
-                        preview.
+                        Select an option that has a 3D model attached to load
+                        the preview.
                       </p>
                     </div>
                   </div>
@@ -1100,8 +1124,8 @@ export default function ConfigurePage() {
                         3D preview unavailable
                       </p>
                       <p className="mt-2 text-sm text-amber-800/80">
-                        {previewError} You can continue configuring and request a
-                        quote.
+                        {previewError} You can continue configuring and request
+                        a quote.
                       </p>
                     </div>
                   </div>
