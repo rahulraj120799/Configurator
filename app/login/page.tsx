@@ -13,7 +13,41 @@ import {
 } from "lucide-react";
 import { APP_NAME } from "@/app/constant";
 import { useSessionUser } from "@/app/hooks/use-session-user";
-import { saveSessionUser } from "@/lib/session-user";
+import {
+  DEFAULT_USER_ROLE,
+  isUserRole,
+  saveSessionUser,
+  type UserRole,
+} from "@/lib/session-user";
+
+type DirectoryUser = {
+  email: string;
+  fullName: string;
+  role: UserRole;
+  active: boolean;
+};
+
+const resolveRole = async (email: string) => {
+  const response = await fetch("/api/admin/users?page=0&size=100");
+
+  if (!response.ok) {
+    throw new Error("Unable to verify your access. Try again.");
+  }
+
+  const payload = (await response.json().catch(() => null)) as {
+    content?: DirectoryUser[];
+  } | null;
+
+  const match = (payload?.content ?? []).find(
+    (entry) => entry.email?.trim().toLowerCase() === email
+  );
+
+  if (match && match.active === false) {
+    throw new Error("This account is deactivated. Contact an administrator.");
+  }
+
+  return match && isUserRole(match.role) ? match.role : DEFAULT_USER_ROLE;
+};
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,7 +55,7 @@ export default function LoginPage() {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,7 +64,7 @@ export default function LoginPage() {
     }
   }, [isLoading, user, router]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
 
@@ -47,14 +81,28 @@ export default function LoginPage() {
       return;
     }
 
-    saveSessionUser({
-      fullName: trimmedName,
-      email: trimmedEmail,
-      isAdmin,
-      loggedInAt: new Date().toISOString(),
-    });
+    setIsSubmitting(true);
 
-    router.replace("/");
+    try {
+      const role = await resolveRole(trimmedEmail);
+
+      saveSessionUser({
+        fullName: trimmedName,
+        email: trimmedEmail,
+        role,
+        loggedInAt: new Date().toISOString(),
+      });
+
+      router.replace("/");
+    } catch (loginError) {
+      setError(
+        loginError instanceof Error
+          ? loginError.message
+          : "Unable to sign in. Try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -168,7 +216,7 @@ export default function LoginPage() {
                 </p>
               </div>
 
-              <form className="space-y-5" onSubmit={handleSubmit}>
+              <form className="space-y-5" onSubmit={(event) => void handleSubmit(event)}>
 
                 {/* Customer Name */}
                 <label className="block">
@@ -212,25 +260,6 @@ export default function LoginPage() {
                   </div>
                 </label>
 
-                {/* Admin */}
-                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3.5 transition hover:border-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={isAdmin}
-                    onChange={(e) => setIsAdmin(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
-                  />
-
-                  <span>
-                    <span className="block text-sm font-semibold text-slate-700">
-                      Is admin
-                    </span>
-                    <span className="mt-0.5 block text-xs text-slate-500">
-                      Grant access to the admin configuration workspace.
-                    </span>
-                  </span>
-                </label>
-
                 {/* Error */}
                 {error && (
                   <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -243,9 +272,10 @@ export default function LoginPage() {
                 {/* Submit */}
                 <button
                   type="submit"
-                  className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 px-4 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-600/25 active:translate-y-0"
+                  disabled={isSubmitting}
+                  className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 px-4 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-600/25 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <span>Sign in</span>
+                  <span>{isSubmitting ? "Signing in..." : "Sign in"}</span>
 
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </button>

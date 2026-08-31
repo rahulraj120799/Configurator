@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CpqApiError, getAdminCredentials, uploadOptionModel } from "@/lib/cpq-api";
 
-type RouteContext = { params: Promise<{ fieldKey: string; optionValue: string }> };
-
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
+
+export const runtime = "nodejs";
 
 const toErrorResponse = (error: unknown) => {
   if (error instanceof CpqApiError) {
@@ -24,8 +24,20 @@ const toErrorResponse = (error: unknown) => {
   );
 };
 
-export async function POST(request: NextRequest, { params }: RouteContext) {
-  const { fieldKey, optionValue } = await params;
+export async function POST(request: NextRequest) {
+  let formData: FormData;
+
+  try {
+    formData = await request.formData();
+  } catch {
+    return NextResponse.json(
+      { error: "VALIDATION_ERROR", message: "Expected multipart/form-data body" },
+      { status: 400 }
+    );
+  }
+
+  const fieldKey = String(formData.get("fieldKey") ?? "").trim();
+  const optionValue = String(formData.get("optionValue") ?? "").trim();
 
   if (!fieldKey || !optionValue) {
     return NextResponse.json(
@@ -34,18 +46,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     );
   }
 
-  let file: File | null = null;
-
-  try {
-    const formData = await request.formData();
-    const entry = formData.get("file");
-    file = entry instanceof File ? entry : null;
-  } catch {
-    return NextResponse.json(
-      { error: "VALIDATION_ERROR", message: "Expected multipart/form-data body" },
-      { status: 400 }
-    );
-  }
+  const entry = formData.get("file");
+  const file = entry instanceof File ? entry : null;
 
   if (!file || file.size === 0) {
     return NextResponse.json(

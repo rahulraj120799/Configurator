@@ -1,9 +1,25 @@
+export type UserRole = "ADMIN" | "EMPLOYEE" | "SALESPERSON";
+
 export type SessionUser = {
   fullName: string;
   email: string;
-  isAdmin: boolean;
+  role: UserRole;
   loggedInAt: string;
 };
+
+export const DEFAULT_USER_ROLE: UserRole = "EMPLOYEE";
+
+const navAccessByRole: Record<UserRole, string[]> = {
+  EMPLOYEE: ["configure"],
+  SALESPERSON: ["configure", "admin-history"],
+  ADMIN: ["configure", "admin", "admin-history", "admin-roles"],
+};
+
+export const isUserRole = (value: unknown): value is UserRole =>
+  value === "ADMIN" || value === "EMPLOYEE" || value === "SALESPERSON";
+
+export const canAccessNav = (role: UserRole, navId: string) =>
+  navAccessByRole[role]?.includes(navId) ?? false;
 
 export const SESSION_USER_KEY = "trailer-configurator:user";
 export const SESSION_USER_EVENT = "trailer-configurator:user-change";
@@ -33,7 +49,7 @@ export function readSessionUser(): SessionUser | null {
     return {
       fullName: parsed.fullName ?? "",
       email: parsed.email,
-      isAdmin: parsed.isAdmin === true,
+      role: isUserRole(parsed.role) ? parsed.role : DEFAULT_USER_ROLE,
       loggedInAt: parsed.loggedInAt ?? new Date().toISOString(),
     };
   } catch {

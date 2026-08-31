@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CpqApiError, submitQuote } from "@/lib/cpq-api";
-import { sendQuoteEmail } from "@/lib/quote-email";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -30,21 +29,7 @@ export async function POST(request: NextRequest) {
       idempotencyKey
     );
 
-    try {
-      await sendQuoteEmail(customer, config.selections, quote);
-      return NextResponse.json({ ...quote, emailSent: true }, { status: 201 });
-    } catch (emailError) {
-      console.error("Quote created, but email delivery failed", emailError);
-      return NextResponse.json(
-        {
-          ...quote,
-          emailSent: false,
-          emailMessage:
-            "Quote created successfully, but the email could not be sent.",
-        },
-        { status: 201 }
-      );
-    }
+    return NextResponse.json(quote, { status: 201 });
   } catch (error) {
     if (error instanceof CpqApiError) {
       return NextResponse.json(

@@ -15,14 +15,13 @@ import {
 } from "lucide-react";
 import { APP_NAME } from "@/app/constant";
 import { useSessionUser } from "@/app/hooks/use-session-user";
-import { clearSessionUser, getInitials } from "@/lib/session-user";
+import { canAccessNav, clearSessionUser, getInitials } from "@/lib/session-user";
 
 type ShellNavItem = {
   id: string;
   label: string;
   href: string;
   icon: LucideIcon;
-  adminOnly?: boolean;
   children?: Array<Pick<ShellNavItem, "id" | "label" | "href" | "icon">>;
 };
 
@@ -33,7 +32,6 @@ const navItems: ShellNavItem[] = [
     label: "Admin",
     href: "/admin",
     icon: Wrench,
-    adminOnly: true,
     children: [
       {
         id: "admin",
@@ -70,7 +68,7 @@ export function ConfiguratorShell({
 }: ConfiguratorShellProps) {
   const router = useRouter();
   const { user, isLoading } = useSessionUser();
-  const isAdminRoute = activeNav.startsWith("admin");
+  const isAllowed = user ? canAccessNav(user.role, activeNav) : false;
 
   useEffect(() => {
     if (isLoading) {
@@ -82,17 +80,17 @@ export function ConfiguratorShell({
       return;
     }
 
-    if (isAdminRoute && !user.isAdmin) {
+    if (!isAllowed) {
       router.replace("/");
     }
-  }, [isLoading, user, isAdminRoute, router]);
+  }, [isLoading, user, isAllowed, router]);
 
   const handleLogout = () => {
     clearSessionUser();
     router.replace("/login");
   };
 
-  if (isLoading || !user || (isAdminRoute && !user.isAdmin)) {
+  if (isLoading || !user || !isAllowed) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#060b14] text-sm text-blue-100/70">
         Checking your session…
@@ -113,28 +111,37 @@ export function ConfiguratorShell({
               <h1 className="text-lg font-bold leading-tight tracking-tight">
                 {APP_NAME}
               </h1>
-              <p className="text-xs text-blue-100/80">Configurator</p>
+              <p className="text-xs leading-snug text-blue-100/80 break-words">
+                {user.fullName ? `${user.fullName} Configurator` : "Configurator"}
+              </p>
             </div>
           </div>
 
-          <nav className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
+          <nav className="min-h-0 flex-1 space-y-2.5 pr-1">
             <p className="mb-4 px-1 text-xs font-semibold uppercase tracking-[0.3em] text-blue-100/70">
               Navigation
             </p>
             {navItems.map((item) => {
-              if (item.adminOnly && !user.isAdmin) {
+              const allowedChildren = (item.children ?? []).filter((child) =>
+                canAccessNav(user.role, child.id)
+              );
+
+              if (!canAccessNav(user.role, item.id) && !allowedChildren.length) {
                 return null;
               }
 
+              const itemHref = canAccessNav(user.role, item.id)
+                ? item.href
+                : allowedChildren[0].href;
               const isActive =
                 activeNav === item.id ||
-                item.children?.some((child) => child.id === activeNav);
+                allowedChildren.some((child) => child.id === activeNav);
               const Icon = item.icon;
 
               return (
                 <div key={item.id}>
                   <Link
-                    href={item.href}
+                    href={itemHref}
                     className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-300 ${
                       isActive
                         ? "border border-white/20 bg-white text-slate-900 shadow-[0_16px_40px_rgba(15,23,42,0.22)]"
@@ -147,9 +154,9 @@ export function ConfiguratorShell({
                       <span className="ml-auto h-2.5 w-2.5 rounded-full bg-orange-500" />
                     ) : null}
                   </Link>
-                  {item.children ? (
+                  {allowedChildren.length ? (
                     <div className="ml-6 mt-2 space-y-1 border-l border-white/20 pl-3">
-                      {item.children.map((child) => {
+                      {allowedChildren.map((child) => {
                         const ChildIcon = child.icon;
 
                         return (
@@ -173,7 +180,7 @@ export function ConfiguratorShell({
               );
             })}
 
-            {sidebarContent ? <div className="mt-8">{sidebarContent}</div> : null}
+            {sidebarContent ? <div className="mt-2">{sidebarContent}</div> : null}
           </nav>
 
           <div className="shrink-0 pt-6">
@@ -189,6 +196,9 @@ export function ConfiguratorShell({
                   <p className="truncate text-xs text-blue-100/80">
                     {user.email}
                   </p>
+                  <span className="mt-1.5 inline-flex items-center rounded-full border border-white/20 bg-white/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-blue-50">
+                    {user.role}
+                  </span>
                 </div>
               </div>
 
