@@ -149,7 +149,7 @@ export default function LoginPage() {
 
             {/* Main content */}
             <div className="relative z-10 my-auto max-w-md">
-              <span className="mb-5 inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-medium text-blue-100 backdrop-blur">
+              <span className="mb-5 mt-4 inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-medium text-blue-100 backdrop-blur">
                 CONFIGURATION PLATFORM
               </span>
 
@@ -181,7 +181,7 @@ export default function LoginPage() {
             </div>
 
             {/* Security */}
-            <div className="relative z-10 flex items-center gap-3 text-sm text-blue-100/70">
+            <div className="relative z-10 flex items-center gap-3 text-sm text-blue-100/70 mt-6">
               <ShieldCheck className="h-5 w-5" />
 
               <span>Your data is secure with us</span>
