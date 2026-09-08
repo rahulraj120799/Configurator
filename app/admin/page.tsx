@@ -199,6 +199,12 @@ export default function AdminPage() {
   const [draggedFieldKey, setDraggedFieldKey] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [basePriceDrafts, setBasePriceDrafts] = useState<Record<string, string>>({});
+  const [optionPriceDrafts, setOptionPriceDrafts] = useState<Record<string, string>>({});
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
   const [modelUploadTarget, setModelUploadTarget] = useState<ModelUploadTarget | null>(null);
   const [modelUploadFile, setModelUploadFile] = useState<File | null>(null);
   const [modelUploadError, setModelUploadError] = useState<string | null>(null);
@@ -351,6 +357,29 @@ export default function AdminPage() {
     updateConfig((current) => ({
       ...current,
       fieldsJson: current.fieldsJson.filter((field) => field.fieldKey !== fieldKey),
+    }));
+  };
+
+  const handleDeleteOption = (fieldIndex: number, optionIndex: number) => {
+    const fieldKey = config?.fieldsJson[fieldIndex]?.fieldKey;
+    if (fieldKey) {
+      setOptionPriceDrafts((current) => {
+        const next = { ...current };
+        delete next[`${fieldKey}:${optionIndex}`];
+        return next;
+      });
+    }
+
+    updateConfig((current) => ({
+      ...current,
+      fieldsJson: current.fieldsJson.map((item, itemIndex) =>
+        itemIndex === fieldIndex
+          ? {
+              ...item,
+              options: (item.options ?? []).filter((_, entryIndex) => entryIndex !== optionIndex),
+            }
+          : item
+      ),
     }));
   };
 
@@ -890,20 +919,26 @@ export default function AdminPage() {
                   >
                     <div className="mb-3 flex items-center justify-between gap-3">
                       {isNewField ? (
-                        <div className="flex w-full items-center justify-between gap-2">
-                          <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
-                            New Field
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteField(field.fieldKey)}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            <span>Delete</span>
-                          </button>
-                        </div>
-                      ) : null}
+                        <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
+                          New Field
+                        </span>
+                      ) : (
+                        <span />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmDialog({
+                            title: "Delete field",
+                            message: `Delete field "${field.label || field.fieldKey}"? This cannot be undone.`,
+                            onConfirm: () => handleDeleteField(field.fieldKey),
+                          });
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>Delete</span>
+                      </button>
                     </div>
                     <button
                       type="button"
@@ -1539,7 +1574,7 @@ export default function AdminPage() {
                           {(field.options ?? []).map((option, optionIndex) => (
                             <div
                               key={`${field.fieldKey}-${optionIndex}`}
-                              className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 md:grid-cols-2 xl:grid-cols-5"
+                              className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 md:grid-cols-2 xl:grid-cols-6"
                             >
                               <label className="min-w-0 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
                                 Label
@@ -1622,10 +1657,24 @@ export default function AdminPage() {
                               <label className="min-w-0 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
                                 Price
                                 <input
-                                  type="number"
-                                  value={option.price}
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={
+                                    optionPriceDrafts[`${field.fieldKey}:${optionIndex}`] ??
+                                    String(option.price)
+                                  }
                                   onChange={(event) => {
-                                    const value = Number(event.target.value) || 0;
+                                    const nextValue = event.target.value;
+                                    setOptionPriceDrafts((current) => ({
+                                      ...current,
+                                      [`${field.fieldKey}:${optionIndex}`]: nextValue,
+                                    }));
+
+                                    if (nextValue === "") {
+                                      return;
+                                    }
+
+                                    const value = Number(nextValue) || 0;
                                     updateConfig((current) => ({
                                       ...current,
                                       fieldsJson: current.fieldsJson.map((item, itemIndex) =>
@@ -1641,6 +1690,33 @@ export default function AdminPage() {
                                           : item
                                       ),
                                     }));
+                                  }}
+                                  onBlur={(event) => {
+                                    const value =
+                                      event.currentTarget.value === ""
+                                        ? 0
+                                        : Number(event.currentTarget.value) || 0;
+
+                                    updateConfig((current) => ({
+                                      ...current,
+                                      fieldsJson: current.fieldsJson.map((item, itemIndex) =>
+                                        itemIndex === fieldIndex
+                                          ? {
+                                              ...item,
+                                              options: (item.options ?? []).map((entry, entryIndex) =>
+                                                entryIndex === optionIndex
+                                                  ? { ...entry, price: value }
+                                                  : entry
+                                              ),
+                                            }
+                                          : item
+                                      ),
+                                    }));
+                                    setOptionPriceDrafts((current) => {
+                                      const next = { ...current };
+                                      delete next[`${field.fieldKey}:${optionIndex}`];
+                                      return next;
+                                    });
                                   }}
                                   placeholder="Price"
                                   className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -1696,6 +1772,20 @@ export default function AdminPage() {
                                 />
                                 Hidden
                               </label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmDialog({
+                                    title: "Delete option",
+                                    message: `Delete option "${option.label || "Untitled option"}"? This cannot be undone.`,
+                                    onConfirm: () => handleDeleteOption(fieldIndex, optionIndex),
+                                  });
+                                }}
+                                className="flex h-[42px] w-full items-center justify-center gap-1.5 self-end rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                <span>Delete</span>
+                              </button>
                             </div>
                           ))}
                         </div>
@@ -1716,6 +1806,41 @@ export default function AdminPage() {
       {toastMessage ? (
         <div className="fixed bottom-6 right-6 z-[60] rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-700 shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
           {toastMessage}
+        </div>
+      ) : null}
+
+      {confirmDialog ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/55 p-4"
+          onClick={() => setConfirmDialog(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_24px_64px_rgba(15,23,42,0.24)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-slate-900">{confirmDialog.title}</h2>
+            <p className="mt-2 text-sm text-slate-600">{confirmDialog.message}</p>
+            <div className="mt-5 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  confirmDialog.onConfirm();
+                  setConfirmDialog(null);
+                }}
+                className="inline-flex items-center gap-2 rounded-full bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Delete</span>
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 
